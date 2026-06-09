@@ -9,3 +9,13 @@ class DeviceNotFoundError(Exception):
     def __init__(self, endpoint_id: str) -> None:
         super().__init__(f"Device not found: {endpoint_id!r}")
         self.endpoint_id = endpoint_id
+
+
+class DeviceUnavailableError(Exception):
+    """Raised when a device cannot be reached (network error, timeout, etc.).
+
+    Maps to Alexa ENDPOINT_UNREACHABLE in the directive handler.
+    """
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
