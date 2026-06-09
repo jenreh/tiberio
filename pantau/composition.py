@@ -10,12 +10,16 @@ import logging
 from pathlib import Path
 from typing import Protocol, TypeVar, cast, runtime_checkable
 
+from pantau.adapters.auth_code_store import AuthCodeStore
 from pantau.adapters.fritz_thermostat_adapter import FritzThermostatAdapter
 from pantau.adapters.harmony_tv_adapter import HarmonyTvAdapter
 from pantau.adapters.homekit_blind_adapter import HomeKitBlindAdapter
+from pantau.adapters.jwt_service import JwtService
 from pantau.adapters.mock_blind_adapter import MockBlindAdapter
 from pantau.adapters.mock_thermostat_adapter import MockThermostatAdapter
+from pantau.adapters.mock_token_validator import MockTokenValidator
 from pantau.adapters.mock_tv_adapter import MockTvAdapter
+from pantau.adapters.sqlite_user_store import SqliteUserStore
 from pantau.adapters.yaml_device_registry import YamlDeviceRegistry
 from pantau.commands.blinds.adjust_blind_position import AdjustBlindPositionCommand
 from pantau.commands.blinds.set_blind_position import SetBlindPositionCommand
@@ -35,7 +39,9 @@ from pantau.interfaces.alexa.router import AlexaDirectiveRouter
 from pantau.ports.blind_port import BlindPort
 from pantau.ports.device_registry_port import DeviceRegistryPort
 from pantau.ports.thermostat_port import ThermostatPort
+from pantau.ports.token_validator_port import TokenValidatorPort
 from pantau.ports.tv_port import TvPort
+from pantau.ports.user_store_port import UserStorePort
 
 log = logging.getLogger(__name__)
 
@@ -65,6 +71,8 @@ class Container:
 
     def register(self, port: type[T], adapter: T) -> Container:
         """Register *adapter* under *port*. Returns self for chaining."""
+        if port in self._store:
+            self._order.remove(port)
         self._store[port] = adapter
         self._order.append(port)
         return self
@@ -87,12 +95,20 @@ def build_container(settings: Settings) -> Container:
     harmony_host = registry.get_registry().tv.harmony_host
     log.info("Building dependency container (real adapters, hub=%s)", harmony_host)
 
+    jwt_service = JwtService(settings)
+    user_store = SqliteUserStore(settings.users_db_path)
+    auth_codes = AuthCodeStore()
+
     container = (
         Container()
         .register(DeviceRegistryPort, registry)  # type: ignore[type-abstract]
         .register(TvPort, HarmonyTvAdapter(harmony_host))  # type: ignore[type-abstract]
         .register(BlindPort, HomeKitBlindAdapter())  # type: ignore[type-abstract]
         .register(ThermostatPort, FritzThermostatAdapter())  # type: ignore[type-abstract]
+        .register(TokenValidatorPort, jwt_service)  # type: ignore[type-abstract]
+        .register(JwtService, jwt_service)
+        .register(UserStorePort, user_store)  # type: ignore[type-abstract]
+        .register(AuthCodeStore, auth_codes)
     )
 
     _wire_commands_and_router(container)
@@ -137,7 +153,9 @@ def _wire_commands_and_router(container: Container) -> None:
         discovery=discovery_handler,
     )
     container.register(AlexaDirectiveRouter, alexa_router)
-    log.info("Alexa directive router wired with %d directives", alexa_router.directive_count)
+    log.info(
+        "Alexa directive router wired with %d directives", alexa_router.directive_count
+    )
 
 
 def build_test_container(devices_config_path: Path) -> Container:
@@ -150,6 +168,23 @@ def build_test_container(devices_config_path: Path) -> Container:
         .register(TvPort, MockTvAdapter())  # type: ignore[type-abstract]
         .register(BlindPort, MockBlindAdapter())  # type: ignore[type-abstract]
         .register(ThermostatPort, MockThermostatAdapter())  # type: ignore[type-abstract]
+        .register(TokenValidatorPort, MockTokenValidator())  # type: ignore[type-abstract]
     )
     _wire_commands_and_router(container)
+    return container
+
+
+def build_oauth_test_container(
+    devices_config_path: Path,
+    user_store: SqliteUserStore,
+    jwt_service: JwtService,
+    auth_codes: AuthCodeStore,
+) -> Container:
+    """Container for OAuth integration tests — in-memory SQLite + real JWT service."""
+    container = build_test_container(devices_config_path)
+    # Override TokenValidatorPort with the real JwtService for OAuth tests
+    container.register(JwtService, jwt_service)
+    container.register(TokenValidatorPort, jwt_service)  # type: ignore[type-abstract]
+    container.register(UserStorePort, user_store)  # type: ignore[type-abstract]
+    container.register(AuthCodeStore, auth_codes)
     return container

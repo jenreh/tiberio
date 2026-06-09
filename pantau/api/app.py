@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from pantau.composition import Container, build_container
 from pantau.config.settings import Settings, get_settings
 from pantau.interfaces.alexa.directive_router import alexa_router
+from pantau.interfaces.oauth.router import oauth_router
 from pantau.ports.device_registry_port import DeviceRegistryPort
 
 log = logging.getLogger(__name__)
@@ -48,6 +49,12 @@ def create_app(
     app.state.container = container
     app.state.settings = settings
 
+    if not settings.oauth_allowed_redirect_uris:
+        log.warning(
+            "SECURITY: oauth_allowed_redirect_uris is empty — "
+            "ALL redirect_uris accepted. Set PANTAU_OAUTH_ALLOWED_REDIRECT_URIS in production."
+        )
+
     _register_routes(app)
 
     log.info("pantau-alexa server created")
@@ -56,6 +63,7 @@ def create_app(
 
 def _register_routes(app: FastAPI) -> None:
     app.include_router(alexa_router)
+    app.include_router(oauth_router)
 
     @app.get("/health", tags=["system"])
     async def health() -> JSONResponse:

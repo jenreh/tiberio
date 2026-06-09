@@ -27,6 +27,7 @@ dependencies = [
     "pydantic==2.13.4",
     "python-jose[cryptography]==3.5.0",
     "pyyaml==6.0.3",
+    "typer>=0.25.1",
     "uvicorn[standard]==0.49.0",
 ]
 
@@ -49,6 +50,7 @@ dev = [
 
 [project.scripts]
 pantau = "pantau.api.app:main"
+pantau-users = "pantau.cli.users:main"
 
 [project.urls]
 Homepage = "https://github.com/jenreh/pantau-alexa"
@@ -191,6 +193,7 @@ select = [
     "S101",
     "PLR2004",
     "ANN001",
+    "S105",
     "S106",
     "SLF001",
     "RET504",
@@ -203,6 +206,7 @@ select = [
     "E741",
     "RUF059",
 ]
+"conftest.py" = ["S105", "S106"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -249,7 +253,7 @@ missing-argument = "error"
 cache_dir = ".cache/mypy"
 
 [[tool.mypy.overrides]]
-module = ["harmonyhub.*", "homekit.*", "fritzctl.*"]
+module = ["harmonyhub.*", "homekit.*", "fritzctl.*", "jose.*", "bcrypt.*"]
 ignore_missing_imports = true
 
 [tool.coverage.run]

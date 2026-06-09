@@ -45,7 +45,9 @@ class RangeHandler:
                 result_value = range_value
             else:  # AdjustRangeValue
                 delta = int(req.directive.payload.get("rangeValueDelta", 0))
-                result_value = await self._adjust_blind_position.execute(endpoint_id, delta=delta)
+                result_value = await self._adjust_blind_position.execute(
+                    endpoint_id, delta=delta
+                )
 
             properties = [
                 build_property(

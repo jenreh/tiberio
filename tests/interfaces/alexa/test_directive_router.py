@@ -416,13 +416,27 @@ class TestDirectiveRouterEdgeCases:
         assert event["payload"]["type"] == "INVALID_DIRECTIVE"
 
     def test_malformed_body_returns_error(self, client: TestClient) -> None:
+        # Body has token (passes mock validation) but directive structure is invalid
         body = client.post(
             "/alexa/directive",
-            json={"not_a_directive": True},
+            json={
+                "directive": {
+                    "header": {"namespace": "Alexa.PowerController", "name": "TurnOn"},
+                    "endpoint": {
+                        "scope": {"type": "BearerToken", "token": "test-bearer-token"},
+                        "endpointId": "zdf",
+                    },
+                    # missing required fields: messageId, payloadVersion
+                }
+            },
         ).json()
 
         event = body["event"]
         assert event["header"]["name"] == "ErrorResponse"
+
+    def test_body_with_no_token_returns_401(self, client: TestClient) -> None:
+        resp = client.post("/alexa/directive", json={"not_a_directive": True})
+        assert resp.status_code == 401
 
     def test_correlation_token_echoed_in_response(self, client: TestClient) -> None:
         body = client.post(

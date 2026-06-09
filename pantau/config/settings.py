@@ -41,6 +41,12 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60
     jwt_refresh_token_expire_days: int = 30
 
+    # User store
+    users_db_path: Path = Path("pantau_users.db")
+
+    # OAuth — allowlist of permitted redirect_uris (empty = no restriction, dev only)
+    oauth_allowed_redirect_uris: list[str] = []
+
 
 @lru_cache
 def get_settings() -> Settings:
