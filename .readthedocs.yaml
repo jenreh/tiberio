@@ -1,0 +1,16 @@
+# Read the Docs configuration for VitePress
+# https://docs.readthedocs.com/platform/stable/config-file/v2.html
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    nodejs: "22"
+  jobs:
+    install:
+      - cd docs && npm ci
+    build:
+      html:
+        - cd docs && npm run docs:build
+        - mkdir -p $READTHEDOCS_OUTPUT/html
+        - cp -r docs/.vitepress/dist/. $READTHEDOCS_OUTPUT/html/
