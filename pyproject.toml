@@ -16,10 +16,11 @@ classifiers = [
 ]
 
 dependencies = [
-    "aiobotocore==3.7.0",
     "aiosqlite==0.22.1",
-    "boto3==1.43.25",
     "fastapi==0.136.3",
+    "fritzctl-py",
+    "harmonyhub-py",
+    "homekit-py",
     "httpx==0.28.1",
     "passlib[bcrypt]==1.7.4",
     "pydantic-settings==2.14.1",
@@ -31,7 +32,6 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "boto3-stubs[s3]==1.43.25",
     "bump-my-version==1.3.0",
     "detect-secrets==1.5.0",
     "httpx==0.28.1",
@@ -260,6 +260,11 @@ exclude_lines = ["if TYPE_CHECKING:", "if __name__ == .__main__.:", "pragma: no 
 fail_under = 80
 show_missing = true
 skip_covered = true
+
+[tool.uv.sources]
+harmonyhub-py = { path = "../harmonyhub-py", editable = true }
+homekit-py = { path = "../homekit-py", editable = true }
+fritzctl-py = { path = "../fritzhome-py", editable = true }
 
 [build-system]
 requires = ["hatchling"]
