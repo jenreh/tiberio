@@ -17,7 +17,6 @@ def settings(tmp_path: Path) -> Settings:
     config.write_text(
         """
 tv:
-  harmony_host: "192.168.1.1"
   watch_activity: "TV"
   audio:
     id: "tv-audio"

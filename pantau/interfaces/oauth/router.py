@@ -81,18 +81,23 @@ def _render_login(
     )
 
 
-def _check_redirect_uri(redirect_uri: str, allowed: list[str]) -> bool:
+def _check_redirect_uri(
+    redirect_uri: str, allowed: list[str], *, dev_mode: bool
+) -> bool:
     """Return True if redirect_uri is permitted.
 
-    When the allowlist is empty the server is in dev mode; any URI is accepted
-    but a warning is logged. In production, set OAUTH_ALLOWED_REDIRECT_URIS.
+    When the allowlist is empty:
+    - dev_mode=True  → accept any URI (log a warning)
+    - dev_mode=False → reject (fail-closed; prevents accidental production exposure)
     """
     if not allowed:
-        log.warning(
-            "oauth_allowed_redirect_uris is empty — accepting any redirect_uri "
-            "(set OAUTH_ALLOWED_REDIRECT_URIS in production)"
-        )
-        return True
+        if dev_mode:
+            log.warning(
+                "DEV_MODE is on and oauth_allowed_redirect_uris is empty — "
+                "accepting any redirect_uri. Do NOT use in production."
+            )
+            return True
+        return False
     return redirect_uri in allowed
 
 
@@ -118,6 +123,19 @@ def _oauth_error(error: str, description: str, status: int = 400) -> JSONRespons
 # ---------------------------------------------------------------------------
 
 
+def _redirect_uri_error(allowed: list[str], dev_mode: bool) -> HTMLResponse:
+    """Return the appropriate error response for a redirect_uri check failure."""
+    if not allowed and not dev_mode:
+        return HTMLResponse(
+            "<h1>503 Service Unavailable — OAuth not configured</h1>"
+            "<p>Set PANTAU_OAUTH_ALLOWED_REDIRECT_URIS or enable PANTAU_DEV_MODE for local dev.</p>",
+            status_code=503,
+        )
+    return HTMLResponse(
+        "<h1>400 Bad Request — redirect_uri not permitted</h1>", status_code=400
+    )
+
+
 @oauth_router.get("/authorize")
 async def authorize_get(
     request: Request,
@@ -128,13 +146,11 @@ async def authorize_get(
     code_challenge_method: str = "S256",
     state: str = "",
 ) -> HTMLResponse:
-    allowed: list[str] = getattr(
-        request.app.state.settings, "oauth_allowed_redirect_uris", []
-    )
-    if not _check_redirect_uri(redirect_uri, allowed):
-        return HTMLResponse(
-            "<h1>400 Bad Request — redirect_uri not permitted</h1>", status_code=400
-        )
+    settings = request.app.state.settings
+    allowed: list[str] = getattr(settings, "oauth_allowed_redirect_uris", [])
+    dev_mode: bool = getattr(settings, "dev_mode", False)
+    if not _check_redirect_uri(redirect_uri, allowed, dev_mode=dev_mode):
+        return _redirect_uri_error(allowed, dev_mode)
 
     if response_type != "code":
         return HTMLResponse(
@@ -167,13 +183,11 @@ async def authorize_post(
     code_challenge_method: str = Form("S256"),
     state: str = Form(""),
 ) -> HTMLResponse | RedirectResponse:
-    allowed: list[str] = getattr(
-        request.app.state.settings, "oauth_allowed_redirect_uris", []
-    )
-    if not _check_redirect_uri(redirect_uri, allowed):
-        return HTMLResponse(
-            "<h1>400 Bad Request — redirect_uri not permitted</h1>", status_code=400
-        )
+    settings = request.app.state.settings
+    allowed: list[str] = getattr(settings, "oauth_allowed_redirect_uris", [])
+    dev_mode: bool = getattr(settings, "dev_mode", False)
+    if not _check_redirect_uri(redirect_uri, allowed, dev_mode=dev_mode):
+        return _redirect_uri_error(allowed, dev_mode)
 
     user_store = request.app.state.container.get(UserStorePort)  # type: ignore[type-abstract]
     auth_codes: AuthCodeStore = request.app.state.container.get(AuthCodeStore)

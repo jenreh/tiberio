@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+from pantau.domain.models import FritzDevice
+
 log = logging.getLogger(__name__)
 
 
@@ -13,6 +15,7 @@ class MockThermostatAdapter:
     def __init__(self) -> None:
         self._temperatures: dict[str, float] = {}
         self.set_temperature_calls: list[tuple[str, float]] = []
+        self._fritz_devices: list[FritzDevice] = []
 
     async def set_temperature(self, fritz_name: str, celsius: float) -> None:
         log.info(
@@ -25,3 +28,7 @@ class MockThermostatAdapter:
         temp = self._temperatures.get(fritz_name, 20.0)
         log.info("MockThermostat: get_temperature name=%s -> %.1f", fritz_name, temp)
         return temp
+
+    async def list_devices(self) -> list[FritzDevice]:
+        log.info("MockThermostat: list_devices count=%d", len(self._fritz_devices))
+        return list(self._fritz_devices)

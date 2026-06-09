@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from pantau.domain.models import FritzDevice
+
 
 class ThermostatPort(Protocol):
     """Abstracts the FRITZ!Box thermostat library (fritzctl)."""
@@ -14,4 +16,8 @@ class ThermostatPort(Protocol):
 
     async def get_temperature(self, fritz_name: str) -> float:
         """Return the current target temperature in Celsius."""
+        ...
+
+    async def list_devices(self) -> list[FritzDevice]:
+        """Return all FRITZ!Box smart-home devices (equivalent to `fritzctl list`)."""
         ...

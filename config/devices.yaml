@@ -1,10 +1,8 @@
 # Device registry — configure all controllable devices here.
 # Adding a new channel or device requires only config changes (no code change).
 #
-# IMPORTANT: Set harmony_host, watch_activity, and fritz_name to match your setup.
 
 tv:
-  harmony_host: "192.168.178.50"  # LAN IP of the Harmony Hub
   watch_activity: "Fernseher"     # Harmony activity name that switches on the TV
 
   audio:

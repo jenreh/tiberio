@@ -8,6 +8,7 @@ from homekit.client import HomeKitClient
 from homekit.exceptions import AccessoryNotFoundError, HomeKitError
 
 from pantau.domain.errors import DeviceUnavailableError
+from pantau.domain.models import HomeKitDevice
 
 log = logging.getLogger(__name__)
 
@@ -66,5 +67,22 @@ class HomeKitBlindAdapter:
             ) from exc
         except AccessoryNotFoundError as exc:
             raise DeviceUnavailableError(str(exc)) from exc
+        except HomeKitError as exc:
+            raise DeviceUnavailableError(str(exc)) from exc
+
+    async def list_devices(self) -> list[HomeKitDevice]:
+        """Return all paired HomeKit devices (equivalent to `homekit entities`)."""
+        try:
+            entities = await self._client.list_entities()
+            log.debug("HomeKitBlind: list_devices count=%d", len(entities))
+            return [
+                HomeKitDevice(
+                    entity_id=e.entity_id,
+                    name=e.name,
+                    domain=e.domain,
+                    room=e.room,
+                )
+                for e in entities
+            ]
         except HomeKitError as exc:
             raise DeviceUnavailableError(str(exc)) from exc

@@ -10,7 +10,6 @@ from pantau.adapters.yaml_device_registry import YamlDeviceRegistry
 
 DEVICES_YAML = """
 tv:
-  harmony_host: "192.168.1.50"
   watch_activity: "Fernseher"
   audio:
     id: "tv-audio"

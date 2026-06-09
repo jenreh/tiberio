@@ -15,7 +15,7 @@ def registry(tmp_path: Path) -> YamlDeviceRegistry:
     config.write_text(
         """
 tv:
-  harmony_host: "192.168.1.50"
+
   watch_activity: "Fernseher"
   audio:
     id: "tv-audio"
@@ -50,7 +50,6 @@ thermostats:
 
 def test_loads_tv_config(registry: YamlDeviceRegistry) -> None:
     tv = registry.get_registry().tv
-    assert tv.harmony_host == "192.168.1.50"
     assert tv.watch_activity == "Fernseher"
 
 

@@ -27,7 +27,6 @@ class TvAudioDevice:
 class TvConfig:
     """Configuration for the Harmony Hub TV integration."""
 
-    harmony_host: str
     watch_activity: str
     audio: TvAudioDevice
     channels: tuple[ChannelDevice, ...]
@@ -63,3 +62,55 @@ class DeviceRegistry:
     tv: TvConfig
     blinds: tuple[BlindDevice, ...]
     thermostats: tuple[ThermostatDevice, ...]
+
+
+# ---------------------------------------------------------------------------
+# Live backend discovery types
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ConnectedDevice:
+    """Base class for all live-discovered backend devices."""
+
+
+@dataclass(frozen=True, slots=True)
+class HarmonyActivity:
+    """A Harmony Hub activity (equivalent to one entry in `harmony config`)."""
+
+    id: str
+    label: str
+    is_power_off: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class HarmonyHubDevice(ConnectedDevice):
+    """A physical device controlled by the Harmony Hub."""
+
+    id: str
+    label: str
+    manufacturer: str | None = None
+    model: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class HomeKitDevice(ConnectedDevice):
+    """A HomeKit device (equivalent to one entry in `homekit entities`)."""
+
+    entity_id: str
+    name: str
+    domain: str
+    room: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FritzDevice(ConnectedDevice):
+    """A FRITZ!Box smart-home device (equivalent to one entry in `fritzctl list`)."""
+
+    id: str
+    name: str
+    online: bool
+    current_temp: float
+    target_temp: float
+    battery_level: int | None = None
+    battery_low: bool = False

@@ -9,6 +9,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from pantau.commands.list_connected_devices import ListConnectedDevicesCommand
 from pantau.composition import Container, build_container
 from pantau.config.settings import Settings, get_settings
 from pantau.interfaces.alexa.directive_router import alexa_router
@@ -50,10 +51,17 @@ def create_app(
     app.state.settings = settings
 
     if not settings.oauth_allowed_redirect_uris:
-        log.warning(
-            "SECURITY: oauth_allowed_redirect_uris is empty — "
-            "ALL redirect_uris accepted. Set PANTAU_OAUTH_ALLOWED_REDIRECT_URIS in production."
-        )
+        if settings.dev_mode:
+            log.warning(
+                "DEV_MODE is on and oauth_allowed_redirect_uris is empty — "
+                "all redirect_uris will be accepted. Do NOT use in production."
+            )
+        else:
+            log.error(
+                "oauth_allowed_redirect_uris is empty and DEV_MODE is off — "
+                "all /oauth/authorize requests will return 503. "
+                "Set PANTAU_OAUTH_ALLOWED_REDIRECT_URIS or PANTAU_DEV_MODE=true."
+            )
 
     _register_routes(app)
 
@@ -79,6 +87,79 @@ def _register_routes(app: FastAPI) -> None:
                     "thermostats": len(registry.thermostats),
                 },
             }
+        )
+
+    @app.get("/devices/connected", tags=["system"])
+    async def connected_devices() -> JSONResponse:
+        """Live device scan — queries Harmony Hub, HomeKit, and FRITZ!Box in parallel.
+
+        Each backend reports independently: an offline hub yields
+        ``status="unavailable"`` for that section while the rest succeed.
+        """
+        container: Container = app.state.container
+        command = container.get(ListConnectedDevicesCommand)
+        result = await command.execute()
+
+        def _harmony() -> dict:
+            r = result.harmony
+            base: dict = {"status": r.status}
+            if r.error:
+                base["error"] = r.error
+            else:
+                base["activities"] = [
+                    {"id": a.id, "label": a.label, "is_power_off": a.is_power_off}
+                    for a in r.activities
+                ]
+                base["devices"] = [
+                    {
+                        "id": d.id,
+                        "label": d.label,
+                        "manufacturer": d.manufacturer,
+                        "model": d.model,
+                    }
+                    for d in r.devices
+                ]
+            return base
+
+        def _homekit() -> dict:
+            r = result.homekit
+            base: dict = {"status": r.status}
+            if r.error:
+                base["error"] = r.error
+            else:
+                base["devices"] = [
+                    {
+                        "entity_id": e.entity_id,
+                        "name": e.name,
+                        "domain": e.domain,
+                        "room": e.room,
+                    }
+                    for e in r.devices
+                ]
+            return base
+
+        def _fritz() -> dict:
+            r = result.fritz
+            base: dict = {"status": r.status}
+            if r.error:
+                base["error"] = r.error
+            else:
+                base["devices"] = [
+                    {
+                        "id": d.id,
+                        "name": d.name,
+                        "online": d.online,
+                        "current_temp": d.current_temp,
+                        "target_temp": d.target_temp,
+                        "battery_level": d.battery_level,
+                        "battery_low": d.battery_low,
+                    }
+                    for d in r.devices
+                ]
+            return base
+
+        return JSONResponse(
+            {"harmony": _harmony(), "homekit": _homekit(), "fritz": _fritz()}
         )
 
 

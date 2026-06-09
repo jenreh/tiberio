@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from pantau.domain.models import HomeKitDevice
+
 
 class BlindPort(Protocol):
     """Abstracts the HomeKit blind library (homekit-py)."""
@@ -14,4 +16,8 @@ class BlindPort(Protocol):
 
     async def get_position(self, homekit_entity_id: str) -> int:
         """Return the current position percentage of a blind."""
+        ...
+
+    async def list_devices(self) -> list[HomeKitDevice]:
+        """Return all paired HomeKit devices (equivalent to `homekit entities`)."""
         ...

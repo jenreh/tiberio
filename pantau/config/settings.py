@@ -8,6 +8,10 @@ from pathlib import Path
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Resolved at import time so the default is CWD-independent.
+# pantau/config/settings.py → pantau/config → pantau → project root
+_PROJECT_ROOT = Path(__file__).parents[2]
+
 
 class Settings(BaseSettings):
     """Runtime configuration loaded from environment variables."""
@@ -24,8 +28,8 @@ class Settings(BaseSettings):
     port: int = 8080
     debug: bool = False
 
-    # Device config path (override in tests)
-    devices_config_path: Path = Path("config/devices.yaml")
+    # Device config path (override via PANTAU_DEVICES_CONFIG_PATH env var)
+    devices_config_path: Path = _PROJECT_ROOT / "config" / "devices.yaml"
 
     # AWS / S3 beacon
     aws_region: str = "eu-central-1"
@@ -44,7 +48,9 @@ class Settings(BaseSettings):
     # User store
     users_db_path: Path = Path("pantau_users.db")
 
-    # OAuth — allowlist of permitted redirect_uris (empty = no restriction, dev only)
+    # OAuth — set DEV_MODE=true to skip redirect_uri allowlist checks locally.
+    # In production both settings must be provided; omitting them blocks all auth requests.
+    dev_mode: bool = False
     oauth_allowed_redirect_uris: list[str] = []
 
 

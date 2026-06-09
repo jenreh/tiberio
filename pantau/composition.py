@@ -27,6 +27,7 @@ from pantau.commands.discover_devices import DiscoverDevicesCommand
 from pantau.commands.heating.set_thermostat_temperature import (
     SetThermostatTemperatureCommand,
 )
+from pantau.commands.list_connected_devices import ListConnectedDevicesCommand
 from pantau.commands.tv.activate_channel import ActivateChannelCommand
 from pantau.commands.tv.set_tv_mute import SetTvMuteCommand
 from pantau.config.settings import Settings
@@ -92,8 +93,7 @@ class Container:
 def build_container(settings: Settings) -> Container:
     """Build the dependency container from settings."""
     registry = YamlDeviceRegistry(settings.devices_config_path)
-    harmony_host = registry.get_registry().tv.harmony_host
-    log.info("Building dependency container (real adapters, hub=%s)", harmony_host)
+    log.info("Building dependency container (real adapters)")
 
     jwt_service = JwtService(settings)
     user_store = SqliteUserStore(settings.users_db_path)
@@ -102,7 +102,7 @@ def build_container(settings: Settings) -> Container:
     container = (
         Container()
         .register(DeviceRegistryPort, registry)  # type: ignore[type-abstract]
-        .register(TvPort, HarmonyTvAdapter(harmony_host))  # type: ignore[type-abstract]
+        .register(TvPort, HarmonyTvAdapter())  # type: ignore[type-abstract]
         .register(BlindPort, HomeKitBlindAdapter())  # type: ignore[type-abstract]
         .register(ThermostatPort, FritzThermostatAdapter())  # type: ignore[type-abstract]
         .register(TokenValidatorPort, jwt_service)  # type: ignore[type-abstract]
@@ -130,12 +130,15 @@ def _wire_commands_and_router(container: Container) -> None:
     adjust_blind = AdjustBlindPositionCommand(registry_port, blind_port)
     discover = DiscoverDevicesCommand(registry_port)
 
+    list_connected = ListConnectedDevicesCommand(tv_port, blind_port, thermostat_port)
+
     container.register(ActivateChannelCommand, activate_channel)
     container.register(SetTvMuteCommand, set_mute)
     container.register(SetThermostatTemperatureCommand, set_temperature)
     container.register(SetBlindPositionCommand, set_blind)
     container.register(AdjustBlindPositionCommand, adjust_blind)
     container.register(DiscoverDevicesCommand, discover)
+    container.register(ListConnectedDevicesCommand, list_connected)
 
     # Handlers
     power_handler = PowerHandler(activate_channel)

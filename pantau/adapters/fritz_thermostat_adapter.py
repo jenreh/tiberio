@@ -9,6 +9,7 @@ import httpx
 from fritzctl.avm.clients import AVMClientAbstract, get_avm_client
 
 from pantau.domain.errors import DeviceNotFoundError, DeviceUnavailableError
+from pantau.domain.models import FritzDevice
 
 if TYPE_CHECKING:
     from fritzctl.domain.models import Thermostat
@@ -84,6 +85,27 @@ class FritzThermostatAdapter:
             return device.target_temp
         except DeviceNotFoundError:
             raise
+        except (httpx.RequestError, TimeoutError, PermissionError) as exc:
+            raise DeviceUnavailableError(str(exc)) from exc
+
+    async def list_devices(self) -> list[FritzDevice]:
+        """Return all FRITZ!Box smart-home devices (equivalent to `fritzctl list`)."""
+        try:
+            client = self._get_client()
+            raw = await client.list_devices()
+            log.debug("FritzThermostat: list_devices count=%d", len(raw))
+            return [
+                FritzDevice(
+                    id=d.id,
+                    name=d.name,
+                    online=d.online,
+                    current_temp=d.current_temp,
+                    target_temp=d.target_temp,
+                    battery_level=d.battery.level if d.battery else None,
+                    battery_low=d.battery.low if d.battery else False,
+                )
+                for d in raw
+            ]
         except (httpx.RequestError, TimeoutError, PermissionError) as exc:
             raise DeviceUnavailableError(str(exc)) from exc
 

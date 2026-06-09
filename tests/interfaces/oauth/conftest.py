@@ -25,7 +25,6 @@ TEST_REDIRECT_URI = "https://alexa.amazon.com/callback"
 
 DEVICES_YAML = """
 tv:
-  harmony_host: "192.168.1.50"
   watch_activity: "Fernseher"
   audio:
     id: "tv-audio"
@@ -50,7 +49,12 @@ thermostats:
 
 @pytest.fixture
 def settings() -> Settings:
-    return Settings(jwt_secret="oauth-test-secret", jwt_access_token_expire_minutes=60)
+    return Settings(
+        jwt_secret="oauth-test-secret",
+        jwt_access_token_expire_minutes=60,
+        dev_mode=True,
+        oauth_allowed_redirect_uris=[TEST_REDIRECT_URI],
+    )
 
 
 @pytest.fixture

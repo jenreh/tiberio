@@ -69,7 +69,6 @@ def _load(path: Path) -> DeviceRegistry:
         for ch in tv_raw.get("channels", [])
     )
     tv = TvConfig(
-        harmony_host=tv_raw["harmony_host"],
         watch_activity=tv_raw["watch_activity"],
         audio=audio,
         channels=channels,
