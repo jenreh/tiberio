@@ -1,10 +1,15 @@
 import { withMermaid } from "vitepress-plugin-mermaid";
 
+// ReadTheDocs serves docs at /en/latest/ (or /en/<version>/); derive base from
+// the canonical URL it injects so asset paths resolve correctly.
+const rtdCanonical = process.env.READTHEDOCS_CANONICAL_URL;
+const base = rtdCanonical ? new URL(rtdCanonical).pathname : "/";
+
 export default withMermaid({
   title: "pantau-alexa",
   description:
     "Alexa Smart Home Skill backend — voice-control your TV, blinds & heating from your own server.",
-  base: "/",
+  base,
   lang: "en-US",
 
   themeConfig: {
