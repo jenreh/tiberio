@@ -103,6 +103,8 @@ def _verify_pkce(code_verifier: str, code_challenge: str, method: str) -> bool:
 
 
 def _oauth_error(error: str, description: str, status: int = 400) -> JSONResponse:
+    # description never contains secrets, codes or tokens — safe to log.
+    log.warning("OAuth error response (%d %s): %s", status, error, description)
     return JSONResponse(
         {"error": error, "error_description": description},
         status_code=status,

@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars (git-ignored) and fill in real values.
+
+aws_region        = "eu-central-1"
+state_bucket_name = "pantau-alexa-tfstate" # must be globally unique
+
+alexa_skill_id     = "amzn1.ask.skill.00000000-0000-0000-0000-000000000000"
+beacon_bucket_name = "pantau-alexa-beacon" # must be globally unique
+
+# Prefer TF_VAR_shared_secret over storing the secret in this file.
+# shared_secret = "..."

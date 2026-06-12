@@ -1,0 +1,22 @@
+{
+  "directive": {
+    "header": {
+      "namespace": "Alexa.Speaker",
+      "name": "SetMute",
+      "messageId": "9f6f4d62-9a5e-4c8e-8a3a-6f0f1d1e0003",
+      "correlationToken": "sample-correlation-token-mute",
+      "payloadVersion": "3"
+    },
+    "endpoint": {
+      "scope": {
+        "type": "BearerToken",
+        "token": "REPLACE_WITH_ACCESS_TOKEN"
+      },
+      "endpointId": "tv-audio",
+      "cookie": {}
+    },
+    "payload": {
+      "mute": true
+    }
+  }
+}

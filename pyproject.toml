@@ -32,6 +32,7 @@ dependencies = [
     "rich==15.0.0",
     "shellingham==1.5.4",
     "python-dotenv>=1.2.2",
+    "boto3>=1.43.27",
 ]
 
 [dependency-groups]
@@ -54,6 +55,7 @@ dev = [
 [project.scripts]
 pantau = "pantau.api.app:main"
 pantau-users = "pantau.cli.users:main"
+pantau-beacon = "pantau.cli.beacon:main"
 
 [project.urls]
 Homepage = "https://github.com/jenreh/pantau-alexa"

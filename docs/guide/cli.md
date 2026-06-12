@@ -1,11 +1,12 @@
 # CLI Reference
 
-pantau-alexa ships two executables, both installed by `uv sync`:
+pantau-alexa ships three executables, all installed by `uv sync`:
 
 | Command | Purpose |
 |---|---|
 | `pantau` | Start the FastAPI home automation server |
 | `pantau-users` | Manage user accounts in the SQLite database |
+| `pantau-beacon` | Publish the S3 endpoint beacon (current tunnel URL) |
 
 ---
 
@@ -141,6 +142,34 @@ uv run pantau-users passwd alice -p "newS3cr3t"
 Updates the bcrypt hash for the user. Does **not** revoke existing tokens — active sessions remain valid until their JWTs expire.
 
 - Exits with code `1` if the user does not exist.
+
+---
+
+## pantau-beacon — publish the endpoint beacon
+
+The AWS edge resolves the home server's address from `endpoint.json` in the S3
+beacon bucket. `pantau-beacon publish` writes that object with the current
+public base URL. The server also publishes it automatically at startup and on
+an interval (when `PANTAU_BEACON_ENABLED=true`); use the CLI to publish on
+demand — for example from a tunnel hook when the URL rotates.
+
+```
+pantau-beacon publish [--base-url URL] [--bucket NAME] [--key KEY] [--region REGION]
+```
+
+```bash
+# Explicit URL
+uv run pantau-beacon publish --base-url https://your-tunnel.example.com
+
+# Fall back to PANTAU_PUBLIC_BASE_URL and the configured bucket/key/region
+uv run pantau-beacon publish
+```
+
+Each option defaults to the corresponding setting (`PANTAU_PUBLIC_BASE_URL`,
+`PANTAU_S3_BEACON_BUCKET`, `PANTAU_S3_BEACON_KEY`, `PANTAU_AWS_REGION`).
+
+- Exits with code `1` if no base URL is given (neither `--base-url` nor
+  `PANTAU_PUBLIC_BASE_URL`) or if the S3 write fails.
 
 ---
 

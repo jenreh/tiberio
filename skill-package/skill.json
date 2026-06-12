@@ -1,0 +1,61 @@
+{
+  "manifest": {
+    "manifestVersion": "1.0",
+    "publishingInformation": {
+      "locales": {
+        "de-DE": {
+          "name": "Pantau Heimsteuerung",
+          "summary": "Steuert Fernseher, Rollos und Heizung über den eigenen Heimserver.",
+          "description": "Privater Smart-Home-Skill für die Heimautomatisierung mit pantau-alexa: Fernseher und Sender (Logitech Harmony Hub), Rollos (HomeKit) und Heizungsthermostate (AVM FRITZ!Box) werden über einen selbst betriebenen FastAPI-Heimserver gesteuert. Single-Household-Skill, nicht für die öffentliche Zertifizierung vorgesehen.",
+          "examplePhrases": [
+            "Alexa, schalte ZDF ein",
+            "Alexa, stell die Heizung im Wohnzimmer auf 22 Grad",
+            "Alexa, mach die Rollos in der Küche halb runter"
+          ],
+          "keywords": [
+            "Smart Home",
+            "Heimautomatisierung",
+            "Fernseher",
+            "Rollos",
+            "Heizung"
+          ],
+          "smallIconUri": "REPLACE_WITH_SMALL_ICON_URI_108x108_PNG",
+          "largeIconUri": "REPLACE_WITH_LARGE_ICON_URI_512x512_PNG"
+        }
+      },
+      "isAvailableWorldwide": false,
+      "distributionCountries": ["DE"],
+      "testingInstructions": "Single-Household-Skill (Entwicklungsmodus). Account Linking gegen den eigenen Heimserver (OAuth2 Authorization Code + PKCE), danach Geräteerkennung und Sprachbefehle laut docs/skill-setup.md.",
+      "category": "SMART_HOME"
+    },
+    "apis": {
+      "smartHome": {
+        "endpoint": {
+          "uri": "REPLACE_WITH_DIRECTIVE_LAMBDA_ARN (terraform output directive_lambda_arn, z. B. arn:aws:lambda:eu-central-1:<ACCOUNT_ID>:function:pantau-alexa-directive-proxy)"
+        },
+        "regions": {
+          "EU": {
+            "endpoint": {
+              "uri": "REPLACE_WITH_DIRECTIVE_LAMBDA_ARN (terraform output directive_lambda_arn)"
+            }
+          }
+        },
+        "protocolVersion": "3"
+      }
+    },
+    "permissions": [],
+    "privacyAndCompliance": {
+      "allowsPurchases": false,
+      "usesPersonalInfo": false,
+      "isChildDirected": false,
+      "isExportCompliant": true,
+      "containsAds": false,
+      "locales": {
+        "de-DE": {
+          "privacyPolicyUrl": "",
+          "termsOfUseUrl": ""
+        }
+      }
+    }
+  }
+}

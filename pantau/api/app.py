@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 from contextlib import asynccontextmanager
 
@@ -9,6 +11,13 @@ import uvicorn
 from fastapi import Depends, FastAPI
 from fastapi.responses import JSONResponse
 
+from pantau.api.logging_setup import configure_logging
+from pantau.api.middleware import (
+    BodySizeLimitMiddleware,
+    RequestIdMiddleware,
+    SecurityHeadersMiddleware,
+)
+from pantau.application.publish_beacon import BeaconPublisher
 from pantau.commands.list_connected_devices import ListConnectedDevicesCommand
 from pantau.composition import Container, build_container
 from pantau.config.settings import Settings, get_settings
@@ -61,6 +70,46 @@ def _validate_security_settings(settings: Settings) -> None:
         )
 
 
+def _validate_beacon_settings(settings: Settings) -> None:
+    """Fail fast on beacon misconfiguration (KONZEPT §9).
+
+    The S3 beacon is the sole mechanism by which the AWS edge resolves the
+    home server. Enabling it without a publishable HTTPS base URL would
+    silently defeat the whole edge path while the updater loop logs success.
+    """
+    if not settings.beacon_enabled:
+        return
+    url = settings.public_base_url
+    if not url:
+        raise RuntimeError(
+            "PANTAU_BEACON_ENABLED is true but PANTAU_PUBLIC_BASE_URL is not "
+            "set. Refusing to start: the beacon would never announce a "
+            "reachable home-server address."
+        )
+    allowed = ("https://", "http://") if settings.dev_mode else ("https://",)
+    if not url.startswith(allowed):
+        raise RuntimeError(
+            "PANTAU_PUBLIC_BASE_URL must start with https:// "
+            "(http:// is allowed only with PANTAU_DEV_MODE=true): "
+            f"got {url!r}."
+        )
+
+
+async def _publish_beacon_safely(publisher: BeaconPublisher) -> None:
+    """Publish the beacon; failures are logged and never propagate."""
+    try:
+        await publisher.execute()
+    except Exception:
+        log.warning("Beacon publish failed", exc_info=True)
+
+
+async def _beacon_loop(publisher: BeaconPublisher, interval_seconds: int) -> None:
+    """Re-publish the beacon every *interval_seconds* until cancelled."""
+    while True:
+        await asyncio.sleep(interval_seconds)
+        await _publish_beacon_safely(publisher)
+
+
 def create_app(
     settings: Settings | None = None,
     container: Container | None = None,
@@ -70,7 +119,9 @@ def create_app(
         # Only load from environment when building the container ourselves
         settings = get_settings() if container is None else Settings()
 
+    configure_logging(settings)
     _validate_security_settings(settings)
+    _validate_beacon_settings(settings)
 
     if container is None:
         container = build_container(settings)
@@ -78,12 +129,28 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_app: FastAPI):  # type: ignore[return]
         started = []
+        beacon_task: asyncio.Task[None] | None = None
         try:
             for adapter in container.lifecycle_adapters:
                 await adapter.start()
                 started.append(adapter)
+            if settings.beacon_enabled:
+                publisher = container.get(BeaconPublisher)
+                await _publish_beacon_safely(publisher)
+                beacon_task = asyncio.create_task(
+                    _beacon_loop(publisher, settings.beacon_update_interval_seconds)
+                )
+                log.info(
+                    "Beacon updater started (interval=%ds)",
+                    settings.beacon_update_interval_seconds,
+                )
             yield
         finally:
+            if beacon_task is not None:
+                beacon_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await beacon_task
+                log.debug("Beacon updater stopped")
             # Stop only what actually started — a partial-start failure must
             # not leave earlier adapters holding connections (zombies).
             for adapter in reversed(started):
@@ -98,6 +165,16 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
+
+    # Outermost first: the request id must already be set while the
+    # security-headers middleware (and everything inside) runs and logs.
+    # The body-size cap is innermost so its 413 still gets id + headers.
+    app.add_middleware(
+        BodySizeLimitMiddleware,
+        max_body_bytes=settings.max_directive_body_bytes,
+    )
+    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(RequestIdMiddleware)
 
     app.state.container = container
     app.state.settings = settings
