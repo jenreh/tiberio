@@ -49,7 +49,7 @@ class _HomeKitClientLike(Protocol):
 
     async def set_position(self, entity_id: str, percent: int) -> object: ...
 
-    async def get_state(self, entity_id: str) -> object: ...
+    async def get_state(self, entity_id: str, *, refresh: bool = False) -> object: ...
 
     async def list_entities(self) -> list[object]: ...
 
@@ -178,20 +178,20 @@ class HomeKitBlindAdapter:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    async def _call(self, method: str, *args: object) -> Any:
-        """Invoke ``self._client.<method>(*args)``, reconnecting once on a drop.
+    async def _call(self, method: str, *args: object, **kwargs: object) -> Any:
+        """Invoke ``self._client.<method>(*args, **kwargs)``, reconnecting once on a drop.
 
         ``self._client`` is re-read after a reconnect, so the retry runs against
         the fresh connection. A second failure propagates to the caller.
         """
         try:
-            return await getattr(self._client, method)(*args)
+            return await getattr(self._client, method)(*args, **kwargs)
         except HomeKitError as exc:
             if self._injected or not _is_transport_error(exc):
                 raise
             log.warning("HomeKitBlind: daemon connection lost (%s); reconnecting", exc)
             await self._connect_daemon()
-            return await getattr(self._client, method)(*args)
+            return await getattr(self._client, method)(*args, **kwargs)
 
     async def _set_position(self, external_id: str, percent: int) -> None:
         """Set the blind position (0 = closed, 100 = open)."""
@@ -208,9 +208,14 @@ class HomeKitBlindAdapter:
             raise DeviceUnavailableError(str(exc)) from exc
 
     async def _get_position(self, external_id: str) -> int:
-        """Return the current position percentage of a blind."""
+        """Return the current position percentage of a blind.
+
+        Forces ``refresh=True`` so the daemon performs a live read instead of
+        serving a value from its freshness-TTL cache — Alexa ReportState and
+        adjust_range must see the true current position, not a stale one.
+        """
         try:
-            state = await self._call("get_state", external_id)
+            state = await self._call("get_state", external_id, refresh=True)
             position = int(float(state.state))
             log.debug(
                 "HomeKitBlind: get_position entity=%s -> %d",

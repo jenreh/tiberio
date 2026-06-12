@@ -30,6 +30,7 @@ class FakeHomeKitClient:
         self._raise_on_set = raise_on_set
         self._raise_on_get = raise_on_get
         self.set_position_calls: list[tuple[str, int]] = []
+        self.get_state_refresh: list[bool] = []
         self.start_count = 0
         self.stop_count = 0
 
@@ -44,7 +45,10 @@ class FakeHomeKitClient:
             raise self._raise_on_set
         self.set_position_calls.append((entity_id, percent))
 
-    async def get_state(self, entity_id: str) -> FakeEntityState:
+    async def get_state(
+        self, entity_id: str, *, refresh: bool = False
+    ) -> FakeEntityState:
+        self.get_state_refresh.append(refresh)
         if self._raise_on_get:
             raise self._raise_on_get
         return FakeEntityState(state=str(self._position))
@@ -182,6 +186,11 @@ class TestGetRange:
         client = FakeHomeKitClient(position=30)
         pos = await _adapter(client).get_range(_blind(invert=True))
         assert pos == 70
+
+    async def test_forces_live_read_to_avoid_stale_cache(self) -> None:
+        client = FakeHomeKitClient(position=75)
+        await _adapter(client).get_range(_blind())
+        assert client.get_state_refresh == [True]
 
     async def test_accessory_not_found_raises_unavailable(self) -> None:
         client = FakeHomeKitClient(raise_on_get=AccessoryNotFoundError("cover missing"))
