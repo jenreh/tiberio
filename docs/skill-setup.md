@@ -12,6 +12,9 @@ skill (step 1, to obtain the skill ID) and configuring the `ask` CLI
 (`ask configure`):
 
 ```bash
+aws configure
+aks configure
+
 uv run tiberio-setup run \
   --skill-id amzn1.ask.skill.<your-skill-id> \
   --tfvars terraform/terraform.tfvars \
@@ -71,10 +74,21 @@ Console → **Account Linking** (values mirror
 | Web Authorization URI       | `oauth_authorize_url` output                           |
 | Access Token URI            | `oauth_token_url` output                               |
 | Client ID                   | `alexa-skill` (free-form; the server binds it to the auth code) |
-| Client Secret               | any non-empty value — the server is a PKCE-only public client and ignores it |
+| Client Secret               | any non-empty value — SMAPI **requires** the field for Auth Code Grant, but the server is a PKCE-only public client and ignores it |
 | Authentication Scheme       | **Credentials in request body**                        |
 | Scope                       | `smart_home`                                           |
+| PKCE                        | **Enabled** (`S256`) — see note below                  |
 | Domain list / redirect URLs | leave empty / defaults                                 |
+
+> **PKCE is mandatory, not optional.** The home server's `/oauth/authorize`
+> rejects any request without a `code_challenge`, so account linking only works
+> if Alexa is told to send PKCE. In the console this is the **Enable PKCE**
+> toggle; in `accountLinking.json` it is the `pkceConfiguration` block
+> (`{"status": "ENABLED", "codeChallengeMethod": "S256"}`). The automated
+> `tiberio-setup` flow sets both `clientSecret` and `pkceConfiguration` for you.
+> Without these two fields the `ask smapi update-account-linking-info` call
+> fails with **HTTP 400** (missing `clientSecret`) or account linking fails at
+> login (Alexa never sends `code_challenge`).
 
 After saving, copy the three **Alexa Redirect URLs** shown in the console
 into the home server's `TIBERIO_OAUTH_ALLOWED_REDIRECT_URIS` (comma-separated)
@@ -138,6 +152,7 @@ German utterances (verify against the real `de-DE` NLU model, KONZEPT §10):
   the real model and prefer the documented fallbacks („auf 50 Prozent",
   `Ton` synonym device).
 - **Channel selection** depends on the Harmony activity name and digit
-  timing; **PKCE** support of Alexa's account-linking flow must be confirmed
-  during E2E (the token endpoint rejects exchanges without
-  `code_verifier`).
+  timing. Alexa's account-linking flow does support **PKCE**, but only when
+  `pkceConfiguration.status = ENABLED` is set in the account-linking request
+  (it is **DISABLED** by default). The server enforces `S256` and rejects
+  exchanges without `code_verifier`, so this flag is mandatory — see §4.

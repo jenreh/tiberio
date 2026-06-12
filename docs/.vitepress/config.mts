@@ -25,8 +25,15 @@ export default withMermaid({
   base,
   lang: "en-US",
 
+  head: [
+    ["link", { rel: "icon", type: "image/svg+xml", href: `${base}logo.svg` }],
+    ["link", { rel: "alternate icon", type: "image/png", href: `${base}logo.png` }],
+    ["meta", { name: "theme-color", content: "#4476af" }],
+  ],
+
   themeConfig: {
     siteTitle: "Tiberio",
+    logo: "/logo.svg",
 
     nav: [
       { text: "Guide", link: "/guide/", activeMatch: "/guide/" },
