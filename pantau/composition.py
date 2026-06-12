@@ -25,7 +25,7 @@ from pantau.adapters.password_hasher import BcryptPasswordHasher
 from pantau.adapters.s3_beacon_publisher import S3BeaconPublisher
 from pantau.adapters.sqlite_user_store import SqliteUserStore
 from pantau.adapters.yaml_device_registry import YamlDeviceRegistry
-from pantau.application.publish_beacon import PublishBeaconUseCase
+from pantau.application.publish_beacon import BeaconPublisher
 from pantau.commands.adjust_range import AdjustRangeCommand
 from pantau.commands.adjust_temperature import AdjustTemperatureCommand
 from pantau.commands.adjust_volume import AdjustVolumeCommand
@@ -157,7 +157,7 @@ def build_container(settings: Settings) -> Container:
     user_store = SqliteUserStore(settings.users_db_path)
     auth_codes = AuthCodeStore()
     beacon_publisher = _build_beacon_publisher(settings)
-    publish_beacon = PublishBeaconUseCase(beacon_publisher, settings.public_base_url)
+    publish_beacon = BeaconPublisher(beacon_publisher, settings.public_base_url)
 
     container = (
         Container()
@@ -171,7 +171,7 @@ def build_container(settings: Settings) -> Container:
         .register(AuthCodeStorePort, auth_codes)  # type: ignore[type-abstract]
         .register(PasswordHasherPort, BcryptPasswordHasher())  # type: ignore[type-abstract]
         .register(BeaconPublisherPort, beacon_publisher)  # type: ignore[type-abstract]
-        .register(PublishBeaconUseCase, publish_beacon)
+        .register(BeaconPublisher, publish_beacon)
     )
 
     _wire_commands_and_router(container)
@@ -274,7 +274,7 @@ def build_test_container(devices_config_path: Path) -> Container:
         .register(MockThermostatAdapter, mock_thermostat, adapter_name=ADAPTER_FRITZ)
         .register(TokenValidatorPort, MockTokenValidator())  # type: ignore[type-abstract]
         .register(BeaconPublisherPort, mock_beacon)  # type: ignore[type-abstract]
-        .register(PublishBeaconUseCase, PublishBeaconUseCase(mock_beacon, ""))
+        .register(BeaconPublisher, BeaconPublisher(mock_beacon, ""))
     )
     _wire_commands_and_router(container)
     return container

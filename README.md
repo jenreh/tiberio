@@ -68,7 +68,7 @@ pantau/
 │   ├── http_auth.py # Bearer-token FastAPI dependency
 │   └── rate_limit.py # Sliding-window rate limiter
 ├── api/             # FastAPI app factory + lifespan
-├── cli/             # pantau-users management CLI (Typer)
+├── cli/             # pantau-users + pantau-beacon CLIs (Typer)
 ├── config/          # pydantic-settings + devices.yaml loader
 └── composition.py   # Dependency injection root
 ```
@@ -142,6 +142,17 @@ uv run pantau-users add <username>
 uv run pantau-users list
 uv run pantau-users passwd <username>
 uv run pantau-users delete <username>
+```
+
+### Beacon CLI
+
+Publish the current tunnel URL to the S3 beacon on demand (e.g. from a
+cloudflared/ngrok hook when the URL rotates):
+
+```bash
+uv run pantau-beacon publish --base-url https://your-tunnel.example.com
+# or rely on PANTAU_PUBLIC_BASE_URL / settings:
+uv run pantau-beacon publish
 ```
 
 ## Development

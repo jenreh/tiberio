@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 
 from pantau.adapters.mock_beacon_publisher import MockBeaconPublisher
 from pantau.api.app import _beacon_loop, create_app
-from pantau.application.publish_beacon import PublishBeaconUseCase
+from pantau.application.publish_beacon import BeaconPublisher
 from pantau.composition import build_test_container
 from pantau.config.settings import Settings
 from pantau.domain.beacon import Beacon
@@ -44,8 +44,8 @@ def test_beacon_enabled_publishes_once_at_startup(devices_config: Path) -> None:
     container = build_test_container(devices_config)
     publisher = MockBeaconPublisher()
     container.register(
-        PublishBeaconUseCase,
-        PublishBeaconUseCase(publisher, base_url="https://tunnel.example.com"),
+        BeaconPublisher,
+        BeaconPublisher(publisher, base_url="https://tunnel.example.com"),
     )
     settings = Settings(
         dev_mode=True,
@@ -62,9 +62,7 @@ def test_beacon_enabled_publishes_once_at_startup(devices_config: Path) -> None:
 def test_beacon_disabled_by_default_publishes_nothing(devices_config: Path) -> None:
     container = build_test_container(devices_config)
     publisher = MockBeaconPublisher()
-    container.register(
-        PublishBeaconUseCase, PublishBeaconUseCase(publisher, base_url="x")
-    )
+    container.register(BeaconPublisher, BeaconPublisher(publisher, base_url="x"))
 
     app = create_app(settings=Settings(dev_mode=True), container=container)
     with TestClient(app):
@@ -76,8 +74,8 @@ def test_beacon_publish_failure_does_not_crash_startup(
 ) -> None:
     container = build_test_container(devices_config)
     container.register(
-        PublishBeaconUseCase,
-        PublishBeaconUseCase(FailingBeaconPublisher(), base_url="x"),
+        BeaconPublisher,
+        BeaconPublisher(FailingBeaconPublisher(), base_url="x"),
     )
     settings = Settings(
         dev_mode=True,
@@ -93,7 +91,7 @@ def test_beacon_publish_failure_does_not_crash_startup(
 
 async def test_beacon_loop_publishes_periodically_and_cancels_cleanly() -> None:
     publisher = MockBeaconPublisher()
-    use_case = PublishBeaconUseCase(publisher, base_url="https://t.example")
+    use_case = BeaconPublisher(publisher, base_url="https://t.example")
 
     task = asyncio.create_task(_beacon_loop(use_case, interval_seconds=0))
     while len(publisher.published) < 2:  # noqa: ASYNC110
@@ -120,7 +118,7 @@ async def test_beacon_loop_keeps_running_after_publish_failure() -> None:
             await publisher.publish(beacon)
 
     flaky = FlakyPublisher()
-    use_case = PublishBeaconUseCase(flaky, base_url="https://t.example")
+    use_case = BeaconPublisher(flaky, base_url="https://t.example")
 
     task = asyncio.create_task(_beacon_loop(use_case, interval_seconds=0))
     while flaky.calls < 2:  # noqa: ASYNC110

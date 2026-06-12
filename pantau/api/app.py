@@ -17,7 +17,7 @@ from pantau.api.middleware import (
     RequestIdMiddleware,
     SecurityHeadersMiddleware,
 )
-from pantau.application.publish_beacon import PublishBeaconUseCase
+from pantau.application.publish_beacon import BeaconPublisher
 from pantau.commands.list_connected_devices import ListConnectedDevicesCommand
 from pantau.composition import Container, build_container
 from pantau.config.settings import Settings, get_settings
@@ -95,19 +95,19 @@ def _validate_beacon_settings(settings: Settings) -> None:
         )
 
 
-async def _publish_beacon_safely(use_case: PublishBeaconUseCase) -> None:
+async def _publish_beacon_safely(publisher: BeaconPublisher) -> None:
     """Publish the beacon; failures are logged and never propagate."""
     try:
-        await use_case.execute()
+        await publisher.execute()
     except Exception:
         log.warning("Beacon publish failed", exc_info=True)
 
 
-async def _beacon_loop(use_case: PublishBeaconUseCase, interval_seconds: int) -> None:
+async def _beacon_loop(publisher: BeaconPublisher, interval_seconds: int) -> None:
     """Re-publish the beacon every *interval_seconds* until cancelled."""
     while True:
         await asyncio.sleep(interval_seconds)
-        await _publish_beacon_safely(use_case)
+        await _publish_beacon_safely(publisher)
 
 
 def create_app(
@@ -135,12 +135,10 @@ def create_app(
                 await adapter.start()
                 started.append(adapter)
             if settings.beacon_enabled:
-                publish_beacon = container.get(PublishBeaconUseCase)
-                await _publish_beacon_safely(publish_beacon)
+                publisher = container.get(BeaconPublisher)
+                await _publish_beacon_safely(publisher)
                 beacon_task = asyncio.create_task(
-                    _beacon_loop(
-                        publish_beacon, settings.beacon_update_interval_seconds
-                    )
+                    _beacon_loop(publisher, settings.beacon_update_interval_seconds)
                 )
                 log.info(
                     "Beacon updater started (interval=%ds)",

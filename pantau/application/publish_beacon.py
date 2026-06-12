@@ -1,4 +1,4 @@
-"""PublishBeaconUseCase — announce the current public base URL via the beacon port."""
+"""BeaconPublisher — announce the current public base URL via the beacon port."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-class PublishBeaconUseCase:
+class BeaconPublisher:
     """Build a Beacon from the configured public base URL and publish it."""
 
     def __init__(

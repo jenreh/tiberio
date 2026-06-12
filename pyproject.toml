@@ -55,6 +55,7 @@ dev = [
 [project.scripts]
 pantau = "pantau.api.app:main"
 pantau-users = "pantau.cli.users:main"
+pantau-beacon = "pantau.cli.beacon:main"
 
 [project.urls]
 Homepage = "https://github.com/jenreh/pantau-alexa"
