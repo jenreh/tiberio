@@ -1,6 +1,6 @@
 # composition.py
 
-**Location:** `tiberio/composition.py`  
+**Location:** `tiberio/composition.py`
 **Role:** The only file that knows both ports *and* adapters. It wires them together at startup.
 
 `composition.py` is the **Composition Root** — the single place where the application's object graph is assembled. This is where "dependency injection" actually happens: adapters are created and registered against their port types, then injected into commands and handlers.
@@ -39,6 +39,14 @@ class Container:
     @property
     def lifecycle_adapters(self) -> list[Lifecycle]:
         """All registered adapters that implement start()/stop()."""
+
+    def _unique_instances(
+        self, source: Iterable[object], capability: type[T]
+    ) -> list[T]:
+        """Filter source to distinct instances implementing capability.
+
+        Shared by all_implementing and lifecycle_adapters — dedup is
+        by object identity, in iteration order."""
 ```
 
 The key is the **type** (the port class itself), not a string. This means the IDE and mypy can type-check `container.get(DeviceRegistryPort)` — you get autocomplete on the result.
@@ -72,6 +80,8 @@ def build_container(settings: Settings) -> Container:
     )
     user_store = SqliteUserStore(settings.users_db_path)
     auth_codes = AuthCodeStore()
+    beacon_publisher = _build_beacon_publisher(settings)
+    publish_beacon = BeaconPublisher(beacon_publisher, settings.public_base_url)
 
     container = (
         Container()
@@ -84,6 +94,8 @@ def build_container(settings: Settings) -> Container:
         .register(UserStorePort, user_store)
         .register(AuthCodeStorePort, auth_codes)
         .register(PasswordHasherPort, BcryptPasswordHasher())
+        .register(BeaconPublisherPort, beacon_publisher)
+        .register(BeaconPublisher, publish_beacon)
     )
 
     _wire_commands_and_router(container)
@@ -93,6 +105,25 @@ def build_container(settings: Settings) -> Container:
 Note that `JwtService` is constructed from individual values (`secret`, `algorithm`, `access_token_expire_minutes`) — it has no dependency on the `Settings` object. The same instance is registered *twice*: under `TokenValidatorPort` (for directive validation) and under `TokenIssuerPort` (for the OAuth token endpoint).
 
 The device adapters are registered under their concrete types with an `adapter_name` slot (`ADAPTER_HARMONY`, `ADAPTER_HOMEKIT`, `ADAPTER_FRITZ` from `domain/models.py`) — capability resolution happens per device through `resolve()`, not through capability-port keys.
+
+The beacon subsystem follows the same individual-values pattern: the chosen adapter is registered under `BeaconPublisherPort`, while the `BeaconPublisher` application service is constructed from that adapter plus `settings.public_base_url` and registered under its own type. Which adapter sits behind the port is decided by the `_build_beacon_publisher()` helper (below).
+
+---
+
+## _build_beacon_publisher()
+
+Selects the beacon-publisher adapter from settings. `beacon_enabled` is the single active/inactive predicate: when set, an `S3BeaconPublisher` is built from `settings.s3_beacon_bucket`, `settings.s3_beacon_key` and `settings.aws_region`; otherwise a `MockBeaconPublisher` is returned. App startup validation guarantees `public_base_url` is set whenever the beacon is enabled.
+
+```python
+def _build_beacon_publisher(settings: Settings) -> BeaconPublisherPort:
+    if settings.beacon_enabled:
+        return S3BeaconPublisher(
+            bucket=settings.s3_beacon_bucket,
+            key=settings.s3_beacon_key,
+            region=settings.aws_region,
+        )
+    return MockBeaconPublisher()
+```
 
 ---
 
@@ -155,6 +186,7 @@ Same wiring, but the device adapters are replaced with mocks. The mocks are regi
 ```python
 def build_test_container(devices_config_path: Path) -> Container:
     registry = YamlDeviceRegistry(devices_config_path)
+    mock_beacon = MockBeaconPublisher()
 
     container = (
         Container()
@@ -163,10 +195,14 @@ def build_test_container(devices_config_path: Path) -> Container:
         .register(MockBlindAdapter, MockBlindAdapter(), adapter_name=ADAPTER_HOMEKIT)
         .register(MockThermostatAdapter, MockThermostatAdapter(), adapter_name=ADAPTER_FRITZ)
         .register(TokenValidatorPort, MockTokenValidator())
+        .register(BeaconPublisherPort, mock_beacon)
+        .register(BeaconPublisher, BeaconPublisher(mock_beacon, ""))
     )
     _wire_commands_and_router(container)
     return container
 ```
+
+The beacon subsystem is mocked too: a `MockBeaconPublisher` is registered under `BeaconPublisherPort`, and the `BeaconPublisher` service is constructed against it with an empty base URL (no beacons are published in tests).
 
 `_wire_commands_and_router()` is shared — commands and handlers are wired identically in both production and test. The only difference is which adapter sits behind each adapter name.
 
@@ -227,6 +263,9 @@ graph LR
     Comp -->|"registers"| Jwt["JwtService<br/>→ TokenValidatorPort + TokenIssuerPort"]
     Comp -->|"registers"| Sqlite["SqliteUserStore<br/>→ UserStorePort"]
     Comp -->|"registers"| Hash["BcryptPasswordHasher<br/>→ PasswordHasherPort"]
+    Comp -->|"_build_beacon_publisher()"| Beacon["S3BeaconPublisher / MockBeaconPublisher<br/>→ BeaconPublisherPort"]
+    Comp -->|"registers"| Publish["BeaconPublisher<br/>(adapter + public_base_url)"]
+    Publish -->|"publishes via"| Beacon
 
     Comp -->|"creates"| Cmds["Commands<br/>(TurnOn · SetRange · SetTemperature · etc.)"]
     Cmds -->|"via registry port"| Reg

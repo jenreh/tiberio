@@ -11,7 +11,6 @@ Every device that Alexa can control must be declared here. Adding a new channel,
 
 ```yaml
 tv:
-  harmony_host: "192.168.178.50"   # LAN IP of your Logitech Harmony Hub
   watch_activity: "Fernseher"      # Activity name in the Harmony app that turns on TV
 
   audio:
@@ -33,7 +32,7 @@ blinds:
   - id: "kueche-rollo"
     friendly_name: "Kitchen Blind"
     aliases: ["Kitchen", "Kitchen Roller"]
-    homekit_entity_id: "cover.kueche"  # Entity ID in your HomeKit setup
+    homekit_entity_id: "cover.kueche"  # HomeKit entity_id used by the blind adapter
     invert: false                       # true = motor is inverted (0 = open, 100 = closed)
 
 thermostats:
@@ -51,7 +50,6 @@ thermostats:
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `harmony_host` | string | LAN IP address of the Harmony Hub |
 | `watch_activity` | string | Exact Harmony activity name that enables TV viewing |
 | `audio.id` | string | Alexa endpoint ID for the Speaker capability (mute/unmute) |
 | `audio.friendly_name` | string | Alexa-visible label for the audio device |
@@ -71,7 +69,7 @@ thermostats:
 | --- | --- | --- |
 | `id` | string | Unique endpoint ID |
 | `friendly_name` | string | Alexa-visible label |
-| `homekit_entity_id` | string | Entity ID in the HomeKit library's `entities.toml` |
+| `homekit_entity_id` | string | HomeKit entity_id the blind adapter targets (e.g. `cover.kueche`); stored on the domain model as `external_id` |
 | `invert` | bool | `true` if your motor uses reversed position values |
 | `aliases` | string[] | Optional alternative names |
 
@@ -103,12 +101,20 @@ All variables use the `TIBERIO_` prefix. A template with every variable is provi
 | `TIBERIO_DEBUG` | `false` | Enable Uvicorn auto-reload (development only) |
 | `TIBERIO_DEVICES_CONFIG_PATH` | `config/devices.yaml` | Path to the device registry YAML |
 
+### Logging
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `TIBERIO_LOG_LEVEL` | `INFO` | Root log level — one of `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Lowercase values are accepted and normalized; unknown values fail at startup. |
+| `TIBERIO_LOG_JSON` | `false` | When `true`, emit structured JSON log lines instead of human-readable text |
+
 ### Security
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `TIBERIO_SHARED_SECRET` | *(empty)* | HMAC shared secret for AWS Lambda → home server request signing. When set, `POST /alexa/directive` requires `X-Tiberio-Timestamp` / `X-Tiberio-Signature` headers (HMAC-SHA256 over `"{timestamp}." + body`). Empty disables HMAC (bearer-token auth only). |
 | `TIBERIO_HMAC_TOLERANCE_SECONDS` | `300` | Replay-protection window for the HMAC timestamp |
+| `TIBERIO_MAX_DIRECTIVE_BODY_BYTES` | `65536` | Maximum accepted request-body size for `POST /alexa/directive`. Larger bodies are rejected with **413 Payload Too Large** by the body-size middleware. |
 | `TIBERIO_JWT_SECRET` | *(empty)* | **Required in production** (min 32 chars). HS256 signing key for JWT tokens — the server refuses to start when this is empty or too short unless `TIBERIO_DEV_MODE=true`. |
 | `TIBERIO_JWT_ALGORITHM` | `HS256` | JWT signing algorithm |
 | `TIBERIO_JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `60` | Access token lifetime (minutes) |
@@ -127,7 +133,7 @@ All variables use the `TIBERIO_` prefix. A template with every variable is provi
 | Variable | Default | Description |
 | --- | --- | --- |
 | `TIBERIO_OAUTH_ALLOWED_REDIRECT_URIS` | *(empty)* | Comma-separated list of permitted redirect URIs. **Must be set in production** — see below. |
-| `TIBERIO_DEV_MODE` | `false` | When `true`, an empty `TIBERIO_OAUTH_ALLOWED_REDIRECT_URIS` accepts any redirect URI. **Never enable in production.** |
+| `TIBERIO_DEV_MODE` | `false` | Relaxes several startup checks for local development. When `true`: an empty `TIBERIO_OAUTH_ALLOWED_REDIRECT_URIS` accepts any redirect URI; an empty or short `TIBERIO_JWT_SECRET` only logs a warning instead of aborting startup; and `TIBERIO_PUBLIC_BASE_URL` may use `http://` (production requires `https://`). **Never enable in production.** |
 
 ::: warning Fail-closed allowlist
 When `TIBERIO_OAUTH_ALLOWED_REDIRECT_URIS` is empty **and** `TIBERIO_DEV_MODE` is `false`, every request to `GET /oauth/authorize` and `POST /oauth/authorize` returns **503 Service Unavailable**. This is intentional — a misconfigured production server must fail loudly rather than silently accept any redirect URI.
@@ -143,11 +149,20 @@ For local development without a fixed redirect URI, set `TIBERIO_DEV_MODE=true` 
 
 ### AWS / S3 beacon
 
+The beacon publishes the home server's current public URL to S3 so the AWS edge can resolve it.
+
 | Variable | Default | Description |
 | --- | --- | --- |
+| `TIBERIO_BEACON_ENABLED` | `false` | When `true`, the server publishes the beacon on startup and refreshes it on an interval |
+| `TIBERIO_PUBLIC_BASE_URL` | *(empty)* | The publicly reachable base URL (tunnel URL) announced via the beacon. Must start with `https://` (or `http://` when `TIBERIO_DEV_MODE=true`). |
+| `TIBERIO_BEACON_UPDATE_INTERVAL_SECONDS` | `300` | Seconds between beacon refreshes |
 | `TIBERIO_AWS_REGION` | `eu-central-1` | AWS region for S3 beacon |
 | `TIBERIO_S3_BEACON_BUCKET` | `tiberio-beacon` | S3 bucket name |
 | `TIBERIO_S3_BEACON_KEY` | `endpoint.json` | S3 object key for the beacon file |
+
+::: warning Beacon startup check
+When `TIBERIO_BEACON_ENABLED=true` but `TIBERIO_PUBLIC_BASE_URL` is empty, the server **refuses to start** (raises a `RuntimeError`) — an enabled beacon with no URL would silently defeat the edge path while the updater loop logs success. The URL scheme is also validated: `https://` is required unless `TIBERIO_DEV_MODE=true`.
+:::
 
 ---
 
@@ -180,6 +195,6 @@ TIBERIO_SHARED_SECRET=7e91d3...
 TIBERIO_OAUTH_ALLOWED_REDIRECT_URIS=https://layla.amazon.com/api/skill/link/AMZN1234
 ```
 
-::: tip Nested env vars
-pydantic-settings supports `__` as a nesting delimiter inside the prefix. For example, `TIBERIO_JWT__SECRET` is an alternative spelling for `TIBERIO_JWT_SECRET`.
+::: tip Flat variable names
+Every setting is a flat field on the `Settings` model, so the env var is simply the `TIBERIO_` prefix plus the field name (e.g. `jwt_secret` → `TIBERIO_JWT_SECRET`). Although `Settings` configures `__` as a nesting delimiter, no field is a nested sub-model, so a name like `TIBERIO_JWT__SECRET` would **not** map to `jwt_secret` — always use the flat names listed above.
 :::

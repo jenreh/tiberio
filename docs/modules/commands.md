@@ -1,6 +1,6 @@
 # commands/
 
-**Location:** `tiberio/commands/`  
+**Location:** `tiberio/commands/`
 **Rule:** One class per use-case. Depends only on `ports/` and `domain/`. No imports from `adapters/` or `interfaces/`.
 
 Commands (also called *use-cases*) are the application's business logic. Each command does exactly one thing and is named after that thing. This makes the codebase navigable: if you want to know how volume adjustment works, open `commands/adjust_volume.py`.
@@ -11,6 +11,7 @@ Commands are **device-agnostic**: they look up the device in the registry, then 
 
 ```
 commands/
+├── __init__.py                 # Package marker (application-layer use-cases)
 ├── _base.py                    # DeviceCommand — shared find/resolve helpers
 ├── turn_on.py                  # TurnOn → PowerablePort.turn_on
 ├── turn_off.py                 # TurnOff → PowerablePort.turn_off
@@ -255,6 +256,6 @@ class ListConnectedDevicesCommand:
         ...
 ```
 
-Each backend is queried independently. If one is offline its entry carries `status="unavailable"` and an error message; the other backends are unaffected. Adding a new adapter (e.g. Hue, Sonos) only requires implementing `ListablePort` and registering it — this command never changes.
+Each backend is queried independently. In the normal path the entry's `status` is taken verbatim from the adapter's `BackendListResult.status` (a `BackendStatus` of `"ok"` or `"unavailable"`), and any `error` message it reports is passed through — so a reachable-but-erroring backend can surface its own status plus an error. Only if a `list_backend()` call raises an *unexpected* exception does this command synthesise `status="unavailable"` with a generic error. Either way the other backends are unaffected (per-backend isolation). Adding a new adapter (e.g. Hue, Sonos) only requires implementing `ListablePort` and registering it — this command never changes.
 
 **Dependencies:** `CapabilityResolverPort` → `ListablePort`

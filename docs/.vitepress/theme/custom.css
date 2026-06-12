@@ -61,3 +61,19 @@
   --vp-c-brand-dark: #4476af;
   --vp-c-brand-darker: #335e90;
 }
+
+/* Nav bar logo at 1.5x the default 24px. */
+.VPNavBarTitle .logo {
+  height: 28px;
+}
+
+/* Home hero image at 2x size. The logo SVG is only 92x100px intrinsic, so the
+ * default theme's max-width/max-height caps never apply (they only shrink, not
+ * grow). Set an explicit height instead — ~100px intrinsic -> 200px. The
+ * .image-container selector raises specificity above the scoped theme styles. */
+.VPHero .image-container .image-src {
+  width: auto;
+  height: 200px;
+  max-width: none;
+  max-height: none;
+}

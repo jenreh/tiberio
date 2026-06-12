@@ -22,7 +22,7 @@ hero:
 features:
   - icon: 📺
     title: TV via Harmony Hub
-    details: "\"Alexa, switch to ZDF\" — activates the TV activity and tunes the channel via Logitech Harmony Hub over WebSocket. Each channel is its own Alexa endpoint."
+    details: "\"Alexa, switch to ZDF\" — activates the TV activity and tunes the channel via Logitech Harmony Hub. Each channel is its own Alexa endpoint."
 
   - icon: 🪟
     title: Roller Blinds via HomeKit

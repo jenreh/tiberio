@@ -31,29 +31,40 @@ graph TD
         end
 
         subgraph Commands["commands/"]
-            ActivateChannel["ActivateChannelCommand"]
-            SetBlind["SetBlindPositionCommand"]
-            SetTemp["SetThermostatTemperatureCommand"]
-            SetMute["SetTvMuteCommand"]
-            Discover["DiscoverDevicesCommand"]
+            Power["TurnOnCommand · TurnOffCommand"]
+            Speaker["SetMuteCommand · SetVolumeCommand<br/>AdjustVolumeCommand · GetSpeakerStateCommand"]
+            RangeCmd["SetRangeCommand · AdjustRangeCommand"]
+            Temp["SetTemperatureCommand · AdjustTemperatureCommand"]
+            Discover["DiscoverDevicesCommand<br/>ListConnectedDevicesCommand"]
         end
 
         subgraph Ports["ports/"]
-            TvPort["TvPort"]
-            BlindPort["BlindPort"]
-            ThermoPort["ThermostatPort"]
+            PowerablePort["PowerablePort"]
+            MutePort["MuteControllablePort"]
+            VolumePort["VolumeControllablePort"]
+            RangePort["RangeControllablePort"]
+            TempPort["TemperatureControllablePort"]
+            ListPort["ListablePort"]
+            CapPort["CapabilityResolverPort"]
             RegPort["DeviceRegistryPort"]
-            TokenPort["TokenValidatorPort"]
+            BeaconPort["BeaconPublisherPort"]
+            TokenValPort["TokenValidatorPort"]
+            TokenIssPort["TokenIssuerPort"]
             UserPort["UserStorePort"]
+            AuthCodePort["AuthCodeStorePort"]
+            HashPort["PasswordHasherPort"]
         end
 
         subgraph Adapters["adapters/"]
             HarmonyAdapter["HarmonyTvAdapter"]
             HomeKitAdapter["HomeKitBlindAdapter"]
             FritzAdapter["FritzThermostatAdapter"]
-            JwtSvc["JwtService"]
-            SQLite["SqliteUserStore"]
             YamlReg["YamlDeviceRegistry"]
+            JwtService["JwtService"]
+            SqliteUserStore["SqliteUserStore"]
+            AuthCodeStore["AuthCodeStore"]
+            PasswordHasher["BcryptPasswordHasher"]
+            BeaconPub["S3BeaconPublisher"]
         end
     end
 
@@ -73,10 +84,10 @@ graph TD
     FastAPI --> Router
     FastAPI --> OAuthRouter
     Router --> Handlers
-    Handlers --> ActivateChannel & SetBlind & SetTemp & SetMute & Discover
-    ActivateChannel & SetBlind & SetTemp & SetMute & Discover --> Ports
+    Handlers --> Power & Speaker & RangeCmd & Temp & Discover
+    Power & Speaker & RangeCmd & Temp & Discover --> Ports
     Ports -.->|"implemented by"| Adapters
-    OAuthRouter --> JwtSvc & SQLite
+    OAuthRouter --> TokenIssPort & UserPort & AuthCodePort & HashPort
 
     HarmonyAdapter -->|"WebSocket"| TV
     HomeKitAdapter -->|"HomeKit protocol"| Blinds
@@ -105,14 +116,15 @@ Amazon's servers. They receive your voice command, determine the intent (e.g. "t
 
 ### Home Server *(Phases 0–4, implemented)*
 
-This is where everything interesting happens. The server exposes three routes:
+This is where everything interesting happens. The server exposes these routes:
 
 | Route | Purpose |
 |---|---|
 | `POST /alexa/directive` | Receives Smart Home directives; validates JWT; routes to handlers |
 | `GET/POST /oauth/authorize` | Shows login form; validates credentials; issues auth code |
 | `POST /oauth/token` | Exchanges auth code → JWT + refresh token; or rotates refresh token |
-| `GET /health` | Returns server status and device counts |
+| `GET /devices/connected` | Bearer-protected live scan of every registered backend via `ListConnectedDevicesCommand` |
+| `GET /health` | Returns server status and device counts (`channels`, `blinds`, `thermostats`) |
 
 ### Physical Devices (LAN)
 
@@ -120,7 +132,7 @@ The three device libraries run directly inside the home server process. They nee
 
 | Device | Library | Protocol |
 |---|---|---|
-| Logitech Harmony Hub | harmonyhub-py | WebSocket (persistent connection) |
+| Logitech Harmony Hub | harmonyhub-py | WebSocket (fresh connection per operation) |
 | HomeKit Accessories | homekit-py | Apple HomeKit over LAN |
 | FRITZ!Box thermostats | fritzctl-py | FRITZ!Box HTTP API |
 

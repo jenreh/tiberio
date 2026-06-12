@@ -64,10 +64,43 @@ AWS is a *dumb proxy*. It only knows where to forward requests. All device intel
 | 2 | Real device adapters (Harmony, Fritz, HomeKit) | ✅ Done |
 | 3 | Alexa Smart Home directive layer (all capabilities) | ✅ Done |
 | 4 | OAuth2 Authorization Server + PKCE + JWT + SQLite user store | ✅ Done |
-| 5 | AWS Edge: Lambda proxy + S3 beacon + Terraform | ⬜ Planned |
-| 6 | Skill manifest, Account Linking config, E2E hardening | ⬜ Planned |
+| 5 | AWS Edge: Lambda proxy + S3 beacon + Terraform | ✅ Done |
+| 6 | Skill manifest, Account Linking config, E2E hardening | ✅ Done |
 
-Phases 0–4 are fully implemented and tested. The server is production-ready as a local HTTP endpoint. Phases 5–6 will wrap it in the AWS edge that makes it reachable from Alexa.
+All six phases are implemented and tested. The FastAPI server runs on your LAN; the AWS edge — a directive Lambda, an OAuth proxy on a Lambda Function URL, and the S3 beacon bucket — is provisioned by Terraform (`terraform/`) and makes the server reachable from Alexa. The Smart Home skill manifest, account-linking template, and Alexa test events ship in the repo too.
+
+## The AWS edge
+
+Terraform provisions the stable AWS front for the skill:
+
+- **Directive Lambda** (`lambda/directive_proxy/`) — resolves the home server's tunnel URL from the S3 beacon (conditional GET, ETag cached) and forwards the directive with HMAC headers.
+- **OAuth proxy** (`lambda/oauth_proxy/` behind a Lambda Function URL) — stable `/oauth/*` URLs for account linking, transparently proxied to the home server.
+- **S3 beacon bucket** — versioned, encrypted `endpoint.json`; the home server publishes its current tunnel URL here.
+
+## Skill configuration assets
+
+The completed delivery layer ships in the repo:
+
+- **`skill-package/skill.json`** — de-DE Smart Home skill manifest.
+- **`skill-package/accountLinking.json`** — account-linking template with placeholders for the Terraform outputs (rendered into `skill-package/build/`).
+- **`scripts/sample-events/`** — Alexa v3 directive test events for the directive Lambda (`aws lambda invoke` / `sam local`).
+- **[Skill setup runbook](/skill-setup)** — Terraform outputs → Alexa console, account linking, device discovery, and the German E2E verification checklist.
+
+## Operating it: the CLIs
+
+Three Typer CLIs (registered in `pyproject.toml`) run the system:
+
+- **`tiberio-users`** — manage OAuth users in the SQLite store (`add`, `list`, `passwd`, `delete`).
+- **`tiberio-beacon`** — publish the current tunnel URL to the S3 beacon (`tiberio-beacon publish --base-url https://your-tunnel.example.com`).
+- **`tiberio-setup`** — end-to-end automation: generates secrets, drives the Terraform two-phase deploy (`terraform/deploy-aws.sh`), renders the skill-package templates from Terraform outputs, and pushes the manifest + account-linking config to the skill via the ASK CLI.
+
+## Security hardening
+
+The OAuth surface and the AWS→home traffic are hardened:
+
+- **HMAC request signing** — when `TIBERIO_SHARED_SECRET` is set, `/alexa/directive` requires `X-Tiberio-Timestamp` and `X-Tiberio-Signature` headers (HMAC-SHA256, 5-minute replay window).
+- **Rate limiting** — sliding-window limiter on the login and token endpoints (per client IP / username).
+- **JWT startup validation** — the server refuses to start when `TIBERIO_JWT_SECRET` is absent or too short (unless `TIBERIO_DEV_MODE=true`).
 
 ## Stack
 
@@ -76,7 +109,7 @@ Phases 0–4 are fully implemented and tested. The server is production-ready as
 | Server | Python 3.14, FastAPI, Uvicorn |
 | Settings | pydantic-settings (env vars + `.env`) |
 | Device registry | YAML (`config/devices.yaml`) |
-| TV control | harmonyhub-py (WebSocket) |
+| TV control | harmonyhub-py (WebSocket, per-operation) |
 | Blind control | homekit-py (HomeKit protocol) |
 | Thermostat control | fritzctl-py (FRITZ!Box HTTP API) |
 | Auth tokens | python-jose (HS256 JWTs) |
@@ -84,4 +117,7 @@ Phases 0–4 are fully implemented and tested. The server is production-ready as
 | Testing | pytest, pytest-asyncio, coverage ≥ 80% |
 | Code quality | ruff (lint + format), mypy |
 | Task runner | Task (Taskfile.dist.yml) |
-| Infrastructure | Terraform (planned, Phase 5) |
+| AWS edge | Lambda (directive proxy + OAuth proxy via Function URL), S3 beacon |
+| Infrastructure | Terraform (`terraform/`, `deploy-aws.sh`) |
+| Skill assets | `skill-package/` (skill.json, accountLinking.json), ASK CLI |
+| Tooling CLIs | Typer (`tiberio-users`, `tiberio-beacon`, `tiberio-setup`) |

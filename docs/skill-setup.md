@@ -13,7 +13,7 @@ skill (step 1, to obtain the skill ID) and configuring the `ask` CLI
 
 ```bash
 aws configure
-aks configure
+ask configure
 
 uv run tiberio-setup run \
   --skill-id amzn1.ask.skill.<your-skill-id> \
@@ -23,8 +23,11 @@ uv run tiberio-setup run \
 
 This generates `.env` secrets, deploys the AWS edge, renders
 `skill-package/build/{skill.json,accountLinking.json}` from the Terraform
-outputs, creates the user, publishes the beacon, and pushes the manifest +
-account-linking config to the skill (`ask smapi`). Steps 4–6 below then reduce
+outputs (filling the endpoint ARN and OAuth URL placeholders; the skill icons
+are already real URLs in the template), creates the user via
+`tiberio-users add`, publishes the beacon via `tiberio-beacon publish
+--base-url`, and pushes the manifest + account-linking config to the skill
+(`ask smapi`). Steps 4–6 below then reduce
 to: copy the redirect URLs into `TIBERIO_OAUTH_ALLOWED_REDIRECT_URIS`, enable the
 skill in the Alexa app, log in, and run device discovery. The manual steps
 below remain the source of truth if you prefer to wire the console by hand.
@@ -38,9 +41,14 @@ order:
 
 1. [Alexa Developer Console](https://developer.amazon.com/alexa/console/ask) →
    **Create Skill** → type **Smart Home**, language **German (DE)**
-   (`de-DE`), payload version **v3** — or use `skill-package/skill.json`
-   with the ASK CLI.
+   (`de-DE`), payload version **v3**.
 2. Copy the **Skill ID** (`amzn1.ask.skill.…`) from the console.
+
+> `skill-package/skill.json` is a **template**, not a publishable manifest: it
+> still contains `REPLACE_WITH_DIRECTIVE_LAMBDA_ARN` placeholders. The render
+> step (`tiberio-setup render`, also run inside `tiberio-setup run`) fills the
+> Terraform outputs and emits a publishable `skill-package/build/skill.json`;
+> push *that* file with the ASK CLI, not the raw template.
 
 ## 2. Deploy the AWS edge with the skill ID
 
@@ -53,15 +61,17 @@ terraform output deployment_summary
 
 ## 3. Terraform outputs → console fields
 
-| Terraform output       | Alexa Developer Console field                            |
-| ---------------------- | -------------------------------------------------------- |
-| `directive_lambda_arn` | Smart Home → **Default endpoint** (and **Europe / India**) |
-| `oauth_authorize_url`  | Account Linking → **Web Authorization URI**              |
-| `oauth_token_url`      | Account Linking → **Access Token URI**                   |
+| Terraform output       | Alexa Developer Console field                                 |
+| ---------------------- | ------------------------------------------------------------- |
+| `directive_lambda_arn` | Smart Home → **Default endpoint** (and the **Europe** region) |
+| `oauth_authorize_url`  | Account Linking → **Web Authorization URI**                   |
+| `oauth_token_url`      | Account Linking → **Access Token URI**                        |
 
 The remaining `deployment_summary` values (`beacon_bucket_name`,
 `beacon_object_key`, `shared_secret_param`) configure the home server's
-beacon publisher and HMAC signing — not the console.
+beacon publisher and HMAC signing — not the console. The separate
+`home_publisher_user_name` output names the IAM user the home server uses to
+publish the beacon (`tiberio-beacon publish`).
 
 ## 4. Account linking
 
@@ -71,8 +81,8 @@ Console → **Account Linking** (values mirror
 | Field                       | Value                                                  |
 | --------------------------- | ------------------------------------------------------ |
 | Auth grant type             | **Auth Code Grant**                                    |
-| Web Authorization URI       | `oauth_authorize_url` output                           |
-| Access Token URI            | `oauth_token_url` output                               |
+| Web Authorization URI       | `oauth_authorize_url` output (Lambda Function URL)     |
+| Access Token URI            | `oauth_token_url` output (Lambda Function URL)         |
 | Client ID                   | `alexa-skill` (free-form; the server binds it to the auth code) |
 | Client Secret               | any non-empty value — SMAPI **requires** the field for Auth Code Grant, but the server is a PKCE-only public client and ignores it |
 | Authentication Scheme       | **Credentials in request body**                        |
@@ -80,6 +90,13 @@ Console → **Account Linking** (values mirror
 | PKCE                        | **Enabled** (`S256`) — see note below                  |
 | Domain list / redirect URLs | leave empty / defaults                                 |
 
+> **OAuth runs on a Lambda Function URL, not API Gateway.** The
+> `oauth_authorize_url` / `oauth_token_url` outputs now look like
+> `https://<id>.lambda-url.<region>.on.aws/oauth/authorize` and `…/oauth/token`.
+> The `execute-api.<region>.amazonaws.com` example still shown in
+> `skill-package/accountLinking.json` is stale; the render step replaces it with
+> the real Function URL anyway.
+>
 > **PKCE is mandatory, not optional.** The home server's `/oauth/authorize`
 > rejects any request without a `code_challenge`, so account linking only works
 > if Alexa is told to send PKCE. In the console this is the **Enable PKCE**
@@ -99,7 +116,8 @@ Home-server prerequisites:
 - `TIBERIO_JWT_SECRET`, `TIBERIO_SHARED_SECRET` set (the latter matching the
   SSM parameter from `shared_secret_param`).
 - A user created via `uv run tiberio-users add <username>`.
-- Tunnel running and the beacon published to S3 (`endpoint.json`).
+- Tunnel running and the beacon published to S3 (`endpoint.json`) via
+  `uv run tiberio-beacon publish --base-url https://<your-tunnel>`.
 
 Then: Alexa app → skill → **Enable to use** → log in on the home server's
 login page. The token exchange runs Authorization Code + PKCE (`S256` is

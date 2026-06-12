@@ -1,6 +1,6 @@
 # interfaces/oauth/
 
-**Location:** `tiberio/interfaces/oauth/router.py`  
+**Location:** `tiberio/interfaces/oauth/router.py`
 **Rule:** All user-controlled input is HTML-escaped. OAuth errors follow RFC 6749 format. No secret values in logs.
 
 The OAuth interface implements a minimal **Authorization Code Grant with PKCE** — just enough to satisfy Alexa's Account Linking requirements. It is self-contained in a single file.
@@ -29,7 +29,7 @@ Shows the HTML login form. Alexa (or its OAuth browser) redirects to this URL at
 - `code_challenge` — PKCE challenge (SHA-256 hash of `code_verifier`)
 - `code_challenge_method` — must be `S256` (anything else, including `plain`, is rejected with HTTP 400)
 - `state` — CSRF token from Alexa
-- `response_type` — always `code`
+- `response_type` — must be `code` (any other value is rejected with HTTP 400, `unsupported_response_type`)
 
 The handler validates that `redirect_uri` is in the `TIBERIO_OAUTH_ALLOWED_REDIRECT_URIS` allowlist. With an empty allowlist the behavior is fail-closed: in dev mode (`TIBERIO_DEV_MODE`) any URI is accepted with a warning log; otherwise the endpoint returns 503 (OAuth not configured).
 
@@ -121,7 +121,7 @@ refresh_token=<the opaque token from a previous response>
 
 ## Token issuance
 
-Both grant paths call the same internal helper:
+`token_post` dispatches on `grant_type` to one of two module-level handlers — `_handle_code_exchange` and `_handle_refresh` — and both delegate to the same internal helper, `_issue_token_pair`:
 
 ```python
 async def _issue_token_pair(
@@ -176,6 +176,8 @@ def _verify_pkce(code_verifier: str, code_challenge: str, method: str) -> bool:
 | `token_rate_limiter` | client IP | `rate_limit_max_attempts` per window |
 
 `POST /oauth/authorize` must pass both login buckets (slows brute force against one account *and* spraying many accounts from one IP); `POST /oauth/token` uses the per-IP token bucket. Exceeding a limit returns HTTP 429. Defaults: 10 attempts per 60 seconds (`rate_limit_max_attempts`, `rate_limit_window_seconds`). Single-process only — a multi-worker setup would need a shared backend.
+
+To bound memory under key churn (e.g. IP/username spraying), the limiter prunes expired keys via `_drop_expired` once the tracked-key count exceeds `_CLEANUP_THRESHOLD` (10,000). This is an internal guard only and does not change the per-key limit behavior.
 
 ---
 

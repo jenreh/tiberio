@@ -14,7 +14,7 @@ Individual commands:
 | `task test` | Run pytest with coverage report |
 | `task lint` | `ruff check` — finds style and logic issues |
 | `task format` | `ruff format` — auto-formats all Python files |
-| `task typecheck` | `mypy` — static type checking |
+| `task typecheck` | `ty` — static type checking |
 
 Coverage must stay at **≥ 80%**. The CI pipeline enforces this.
 
@@ -107,7 +107,7 @@ Use `logging.getLogger(__name__)`. Default level is `DEBUG`; important events us
 Every function signature needs type annotations:
 
 ```python
-def find_channel(self, endpoint_id: str) -> ChannelDevice | None: ...
+def find_device(self, endpoint_id: str) -> Device | None: ...
 ```
 
 ### Files ≤ 1000 lines
@@ -144,12 +144,9 @@ This is what "Open for extension, closed for modification" looks like in practic
 ### 1. Add domain models
 
 ```python
-# domain/models.py
-@dataclass(frozen=True, slots=True)
-class LightDevice:
-    id: str
-    friendly_name: str
-    homekit_entity_id: str
+# domain/models.py — frozen Pydantic models (see the shared Device base)
+class Light(Device):
+    external_id: str  # adapter-specific reference (e.g. HomeKit entity_id)
 ```
 
 ### 2. Define a port
@@ -218,20 +215,20 @@ That's it. All existing code is unchanged.
 
 ## Managing users (CLI)
 
-The `tiberio users` CLI manages the SQLite user database:
+The `tiberio-users` CLI manages the SQLite user database:
 
 ```bash
 # Create a new user
-uv run tiberio users create --username alice
+uv run tiberio-users add alice
 
 # List all users
-uv run tiberio users list
+uv run tiberio-users list
 
-# Delete a user
-uv run tiberio users delete --username alice
+# Delete a user (and revoke their tokens)
+uv run tiberio-users delete alice
 
 # Change a password
-uv run tiberio users set-password --username alice
+uv run tiberio-users passwd alice
 ```
 
 ---

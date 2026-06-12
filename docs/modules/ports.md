@@ -1,11 +1,11 @@
 # ports/
 
-**Location:** `tiberio/ports/`  
+**Location:** `tiberio/ports/`
 **Rule:** No imports from `adapters/`. Ports define *what* is needed; adapters define *how* it's done.
 
 Ports are abstract contracts — Python `Protocol` classes that define the interface between use-cases and infrastructure. They're the plugs in the wall: your business logic plugs into ports, and adapters plug into the other side.
 
-Every port is intentionally narrow: it defines only the operations that the commands actually need, nothing more (*Interface Segregation Principle*). Device-facing ports are **capability ports** — one port per capability (power, mute, volume, temperature, range), not one port per backend. An adapter implements exactly the capabilities its devices support.
+Every port is intentionally narrow: it defines only the operations that the commands actually need, nothing more (*Interface Segregation Principle*). Device-facing ports are **capability ports** — one port per capability (power, mute, volume, temperature, range, beacon publishing), not one port per backend. An adapter implements exactly the capabilities its devices support.
 
 ## Why Protocol instead of ABC?
 
@@ -301,6 +301,24 @@ class PasswordHasherPort(Protocol):
 
 ---
 
+## BeaconPublisherPort
+
+**File:** `ports/beacon_publisher_port.py`
+
+```python
+@runtime_checkable
+class BeaconPublisherPort(Protocol):
+    async def publish(self, beacon: Beacon) -> None: ...
+```
+
+Capability for publishing the endpoint beacon — a `Beacon` (`domain/beacon.py`) is the public reachability record (`base_url`, `updated_at`, `health`) written as `endpoint.json` so the AWS edge can discover the current tunnel URL. Never contains secrets.
+
+Unlike the device-facing capability ports, this one is wired once via `_build_beacon_publisher(settings)`: `settings.beacon_enabled` selects the production `S3BeaconPublisher` (writes to the beacon bucket via boto3) or falls back to `MockBeaconPublisher` when disabled.
+
+**Implemented by:** `S3BeaconPublisher` (production), `MockBeaconPublisher` (tests / beacon disabled)
+
+---
+
 ## Port-to-adapter mapping
 
 Capability ports are resolved **per device** via `Container.resolve(device, capability)`, keyed by the device's `adapter` field (`harmony`, `homekit`, `fritz`):
@@ -322,3 +340,4 @@ Infrastructure ports are registered once under their port type:
 | `AuthCodeStorePort` | `AuthCodeStore` | `AuthCodeStore` |
 | `UserStorePort` | `SqliteUserStore` | `SqliteUserStore` (in-memory `:memory:`) |
 | `PasswordHasherPort` | `BcryptPasswordHasher` | `BcryptPasswordHasher` |
+| `BeaconPublisherPort` | `S3BeaconPublisher` | `MockBeaconPublisher` |
