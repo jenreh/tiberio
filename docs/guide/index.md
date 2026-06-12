@@ -1,6 +1,6 @@
-# What is tiberio?
+# What is Tiberio?
 
-tiberio is a self-hosted Alexa Smart Home Skill backend that lets you control your **TV** (Logitech Harmony Hub), **roller blinds** (HomeKit), and **heating thermostats** (AVM FRITZ!Box) by speaking to an Amazon Echo device — entirely through infrastructure you own and operate.
+Tiberio is a self-hosted Alexa Smart Home Skill backend that lets you control your **TV** (Logitech Harmony Hub), **roller blinds** (HomeKit), and **heating thermostats** (AVM FRITZ!Box) by speaking to an Amazon Echo device — entirely through infrastructure you own and operate.
 
 ## The problem it solves
 
@@ -14,7 +14,7 @@ You want to say things like:
 | "Alexa, open the blinds in the kitchen" | HomeKit accessory moves the blind to 100% |
 | "Alexa, lower the living room blinds by 20%" | Adjusts blind position by a relative delta |
 
-Off-the-shelf Alexa integrations for these devices either don't exist, require paid subscriptions, or route all commands through a third-party cloud service. tiberio puts the orchestration logic on a FastAPI server in your own home network — Alexa just becomes the voice interface.
+Off-the-shelf Alexa integrations for these devices either don't exist, require paid subscriptions, or route all commands through a third-party cloud service. Tiberio puts the orchestration logic on a FastAPI server in your own home network — Alexa just becomes the voice interface.
 
 ## Two constraints that shape everything
 

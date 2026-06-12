@@ -19,7 +19,7 @@ sequenceDiagram
     participant HS as Home Server<br/>/oauth
     participant DB as SQLite<br/>(users + tokens)
 
-    User->>App: Enable tiberio skill
+    User->>App: Enable Tiberio skill
     App->>Alexa: Initiate Account Linking
     Alexa->>APIGW: GET /oauth/authorize?<br/>client_id=&redirect_uri=&<br/>code_challenge=&state=
     APIGW->>HS: Forward (S3 beacon lookup)

@@ -9,7 +9,7 @@ const guideSidebar = [
   {
     text: "Guide",
     items: [
-      { text: "What is tiberio?", link: "/guide/" },
+      { text: "What is Tiberio?", link: "/guide/" },
       { text: "Getting Started", link: "/guide/getting-started" },
       { text: "Configuration Reference", link: "/guide/configuration" },
       { text: "CLI Reference", link: "/guide/cli" },
@@ -19,14 +19,14 @@ const guideSidebar = [
 ];
 
 export default withMermaid({
-  title: "tiberio",
+  title: "Tiberio",
   description:
     "Alexa Smart Home Skill backend — voice-control your TV, blinds & heating from your own server.",
   base,
   lang: "en-US",
 
   themeConfig: {
-    siteTitle: "tiberio",
+    siteTitle: "Tiberio",
 
     nav: [
       { text: "Guide", link: "/guide/", activeMatch: "/guide/" },
@@ -80,7 +80,7 @@ export default withMermaid({
     ],
 
     footer: {
-      message: "tiberio — self-hosted Alexa Smart Home backend",
+      message: "Tiberio — self-hosted Alexa Smart Home backend",
       copyright: "Copyright © 2026",
     },
 

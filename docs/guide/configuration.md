@@ -1,6 +1,6 @@
 # Configuration Reference
 
-tiberio is configured through two sources:
+Tiberio is configured through two sources:
 
 1. **`config/devices.yaml`** — the device registry (which physical devices exist and how to reach them)
 2. **Environment variables / `.env` file** — secrets, ports, paths
@@ -117,6 +117,7 @@ All variables use the `TIBERIO_` prefix. A template with every variable is provi
 | `TIBERIO_RATE_LIMIT_WINDOW_SECONDS` | `60` | Sliding window for the rate limiter |
 
 ::: warning Deployment caveats
+
 - The HMAC timestamp check bounds *freshness*, not single use: a captured signed request can be replayed within the tolerance window. Lower `TIBERIO_HMAC_TOLERANCE_SECONDS` if your clock sync allows it.
 - Rate limiting keys on the TCP client address. Behind a reverse proxy, all clients share the proxy's IP — terminate TLS on the server directly, or configure trusted `X-Forwarded-For` handling before relying on per-IP limits.
 :::

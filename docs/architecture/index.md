@@ -1,6 +1,6 @@
 # System Overview
 
-tiberio has two distinct runtime zones — **AWS Edge** (stable, public, planned in Phase 5) and the **Home Server** (dynamic IP, your LAN, implemented in Phases 0–4). Between them sits an S3 object that tells the Lambda where to find your home server right now.
+Tiberio has two distinct runtime zones — **AWS Edge** (stable, public, planned in Phase 5) and the **Home Server** (dynamic IP, your LAN, implemented in Phases 0–4). Between them sits an S3 object that tells the Lambda where to find your home server right now.
 
 ## The big picture
 
@@ -92,6 +92,7 @@ graph TD
 ## Zone responsibilities
 
 ### Alexa Cloud
+
 Amazon's servers. They receive your voice command, determine the intent (e.g. "turn on ZDF"), and call your Lambda with a structured directive JSON payload. This zone is entirely outside your control.
 
 ### AWS Edge *(Phase 5, planned)*
