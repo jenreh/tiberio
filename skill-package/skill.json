@@ -19,8 +19,8 @@
             "Rollos",
             "Heizung"
           ],
-          "smallIconUri": "REPLACE_WITH_SMALL_ICON_URI_108x108_PNG",
-          "largeIconUri": "REPLACE_WITH_LARGE_ICON_URI_512x512_PNG"
+          "smallIconUri": "https://raw.githubusercontent.com/jenreh/tiberio/main/docs/logo.png",
+          "largeIconUri": "https://raw.githubusercontent.com/jenreh/tiberio/main/docs/logo.png"
         }
       },
       "isAvailableWorldwide": false,
