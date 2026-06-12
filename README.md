@@ -155,6 +155,35 @@ uv run pantau-beacon publish --base-url https://your-tunnel.example.com
 uv run pantau-beacon publish
 ```
 
+### Setup CLI
+
+`pantau-setup` automates infrastructure initialisation and Alexa account
+linking end to end: it generates the home-server secrets, drives the Terraform
+two-phase deploy ([terraform/deploy-aws.sh](terraform/deploy-aws.sh)), renders the
+[skill-package/](skill-package/) templates from the Terraform outputs into
+`skill-package/build/`, and pushes the manifest + account-linking config to the
+skill via the ASK CLI (`ask smapi`). Requires `terraform`, `aws`, `uv`, and —
+for the linking step — a configured `ask` CLI (`ask configure`).
+
+```bash
+# Whole flow (secrets → infra → render → optional user/beacon → link):
+uv run pantau-setup run \
+  --skill-id amzn1.ask.skill.<your-skill-id> \
+  --tfvars terraform/terraform.tfvars \
+  --username alice --base-url https://your-tunnel.example.com --yes
+
+# Or run the phases individually:
+uv run pantau-setup check     # verify required tooling
+uv run pantau-setup secrets   # ensure .env has strong JWT/HMAC secrets
+uv run pantau-setup infra     --skill-id <id> --tfvars terraform/terraform.tfvars --yes
+uv run pantau-setup render    # skill-package/build/* from terraform outputs
+uv run pantau-setup link      --skill-id <id>
+```
+
+The final "Enable to use + log in" tap in the Alexa app stays manual; `run`
+prints the remaining console steps (redirect URLs, discovery) when it finishes.
+See [docs/skill-setup.md](docs/skill-setup.md) for the full runbook.
+
 ## Development
 
 ```bash

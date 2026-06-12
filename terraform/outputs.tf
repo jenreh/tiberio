@@ -23,7 +23,7 @@ output "home_publisher_user_name" {
   value       = module.iam.home_publisher_user_name
 }
 
-# Consumed by deploy.sh after a successful phase-2 apply.
+# Consumed by deploy-aws.sh after a successful phase-2 apply.
 output "deployment_summary" {
   description = "Key values needed for the Alexa skill configuration."
   value = {

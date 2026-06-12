@@ -12,7 +12,7 @@ terraform {
     }
   }
 
-  # Partial configuration: filled by deploy.sh via backend.prod.hcl
+  # Partial configuration: filled by deploy-aws.sh via backend.prod.hcl
   # (generated from the bootstrap phase / tfvars state_* variables).
   backend "s3" {}
 }

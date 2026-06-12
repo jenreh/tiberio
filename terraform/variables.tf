@@ -75,7 +75,7 @@ variable "lambda_runtime" {
   default     = "python3.13"
 }
 
-# Consumed by deploy.sh / bootstrap; declared here so a shared tfvars file
+# Consumed by deploy-aws.sh / bootstrap; declared here so a shared tfvars file
 # does not trigger undeclared-variable warnings in phase 2.
 variable "state_bucket_name" {
   description = "Name of the S3 bucket holding the Terraform state (bootstrap)."

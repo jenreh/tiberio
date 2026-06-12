@@ -1,6 +1,6 @@
 # Phase 1 (bootstrap): S3 bucket that stores the Terraform state of the
-# main configuration. Applied with local state via `deploy.sh bootstrap`,
-# then the root configuration migrates onto it (`deploy.sh migrate`).
+# main configuration. Applied with local state via `deploy-aws.sh bootstrap`,
+# then the root configuration migrates onto it (`deploy-aws.sh migrate`).
 
 provider "aws" {
   region = var.aws_region

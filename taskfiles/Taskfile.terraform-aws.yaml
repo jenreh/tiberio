@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: "3"
+
+vars:
+  TFVARS: "{{.TF_DIR}}/{{.ENVIRONMENT}}.auto.tfvars"
+
+tasks:
+  # ----------------------------------------------------------------------------
+  # Terraform Commands (Namespace: tf) — AWS
+  # ----------------------------------------------------------------------------
+  status:
+    desc: Show current deployment status
+    # Force execution in the directory of this Taskfile
+    dir: "{{.TF_DIR}}"
+    cmds:
+      - aws sts get-caller-identity > /dev/null 2>&1 || aws sso login
+      # Now we can refer to the script locally because 'dir' sets the context
+      - ./deploy-aws.sh status
+
+  bootstrap:
+    desc: Create state storage infrastructure in AWS (only run once)
+    dir: "{{.TF_DIR}}"
+    requires:
+      vars: [TFVARS]
+    cmds:
+      - aws sts get-caller-identity > /dev/null 2>&1 || aws sso login
+      - ./deploy-aws.sh bootstrap --tfvars {{.TFVARS}} {{.CLI_ARGS}}
+
+  migrate:
+    desc: Deploy and update main infrastructure
+    dir: "{{.TF_DIR}}"
+    requires:
+      vars: [TFVARS]
+    cmds:
+      - aws sts get-caller-identity > /dev/null 2>&1 || aws sso login
+      - ./deploy-aws.sh migrate --tfvars {{.TFVARS}} {{.CLI_ARGS}}
+
+  destroy:
+    desc: Destroy all infrastructure (⚠️  destructive)
+    dir: "{{.TF_DIR}}"
+    requires:
+      vars: [TFVARS]
+    cmds:
+      - aws sts get-caller-identity > /dev/null 2>&1 || aws sso login
+      - terraform destroy -var-file {{.TFVARS}} {{.CLI_ARGS}}

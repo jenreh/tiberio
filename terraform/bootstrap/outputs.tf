@@ -1,4 +1,4 @@
-# Consumed by deploy.sh (written to backend_config.json after phase 1).
+# Consumed by deploy-aws.sh (written to backend_config.json after phase 1).
 output "backend_configuration" {
   description = "S3 backend settings for the main (phase 2) configuration."
   value = {

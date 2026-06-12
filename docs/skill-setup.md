@@ -5,6 +5,27 @@ Smart-Home skill, linking the account, and verifying end-to-end. The manifest
 and account-linking templates live in
 [`skill-package/`](https://github.com/jenreh/pantau-alexa/tree/main/skill-package).
 
+## 0. Automated path (`pantau-setup`)
+
+Most of this runbook is automated by the `pantau-setup` CLI. After creating the
+skill (step 1, to obtain the skill ID) and configuring the `ask` CLI
+(`ask configure`):
+
+```bash
+uv run pantau-setup run \
+  --skill-id amzn1.ask.skill.<your-skill-id> \
+  --tfvars terraform/terraform.tfvars \
+  --username <user> --base-url https://<your-tunnel> --yes
+```
+
+This generates `.env` secrets, deploys the AWS edge, renders
+`skill-package/build/{skill.json,accountLinking.json}` from the Terraform
+outputs, creates the user, publishes the beacon, and pushes the manifest +
+account-linking config to the skill (`ask smapi`). Steps 4–6 below then reduce
+to: copy the redirect URLs into `PANTAU_OAUTH_ALLOWED_REDIRECT_URIS`, enable the
+skill in the Alexa app, log in, and run device discovery. The manual steps
+below remain the source of truth if you prefer to wire the console by hand.
+
 ## 1. Create the skill (placeholder endpoint)
 
 There is a chicken-and-egg between the skill ID and the Lambda: the directive
@@ -22,7 +43,7 @@ order:
 
 ```bash
 cd terraform
-./deploy.sh migrate --tfvars terraform.tfvars \
+./deploy-aws.sh migrate --tfvars terraform.tfvars \
   -var "alexa_skill_id=amzn1.ask.skill.<your-skill-id>"
 terraform output deployment_summary
 ```
