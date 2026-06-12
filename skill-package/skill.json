@@ -19,8 +19,8 @@
             "Rollos",
             "Heizung"
           ],
-          "smallIconUri": "https://raw.githubusercontent.com/jenreh/tiberio/main/docs/public/logo.png",
-          "largeIconUri": "https://raw.githubusercontent.com/jenreh/tiberio/main/docs/public/logo.png"
+          "smallIconUri": "https://raw.githubusercontent.com/jenreh/tiberio/main/docs/public/alexa-icon-108.png",
+          "largeIconUri": "https://raw.githubusercontent.com/jenreh/tiberio/main/docs/public/alexa-icon-512.png"
         }
       },
       "isAvailableWorldwide": false,
@@ -46,13 +46,13 @@
     "permissions": [],
     "privacyAndCompliance": {
       "allowsPurchases": false,
-      "usesPersonalInfo": false,
+      "usesPersonalInfo": true,
       "isChildDirected": false,
       "isExportCompliant": true,
       "containsAds": false,
       "locales": {
         "de-DE": {
-          "privacyPolicyUrl": "",
+          "privacyPolicyUrl": "https://github.com/jenreh/tiberio/blob/main/docs/datenschutz.md",
           "termsOfUseUrl": ""
         }
       }
