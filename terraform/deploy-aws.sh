@@ -69,20 +69,22 @@ check_tfvars() {
         print_success "Using specified tfvars file: $TFVARS_FILE"
     else
         # Check for terraform.tfvars or *.auto.tfvars files
+        # zsh null-glob qualifier (N): expands to nothing instead of erroring
+        # with "no matches found" when no *.auto.tfvars file exists.
+        local auto_tfvars=(*.auto.tfvars(N))
         if [[ -f "terraform.tfvars" ]]; then
             TFVARS_FILE="terraform.tfvars"
             print_success "Found terraform.tfvars"
-        elif ls *.auto.tfvars >/dev/null 2>&1; then
-            TFVARS_FILE=$(ls *.auto.tfvars | head -1)
+        elif [[ ${#auto_tfvars[@]} -gt 0 ]]; then
+            TFVARS_FILE="${auto_tfvars[1]}"
             print_success "Found auto tfvars file: $TFVARS_FILE"
         elif [[ ${#TF_VARS[@]} -eq 0 ]]; then
-            print_error "No Terraform variables file found and no command-line variables provided!"
-            print_error "Please ensure one of the following exists:"
-            print_error "  - terraform.tfvars"
-            print_error "  - *.auto.tfvars"
-            print_error "  - specify --tfvars <filename>"
-            print_error "  - use -var <key=value> to set variables"
-            exit 1
+            # No explicit variables — Terraform falls back to the defaults in
+            # variables.tf. Required variables without a default (or a TF_VAR_
+            # env override) are still enforced by Terraform itself at plan time,
+            # so we only warn here instead of failing pre-emptively. The
+            # bootstrap phase in particular declares only defaulted variables.
+            print_warning "No tfvars file or -var provided; using Terraform variable defaults / TF_VAR_ env."
         fi
     fi
 
@@ -142,7 +144,7 @@ generate_backend_hcl() {
     region=$(read_tfvar "aws_region")
 
     [[ -n "$bucket" ]] || bucket="tiberio-tfstate"
-    [[ -n "$region" ]] || region="eu-central-1"
+    [[ -n "$region" ]] || region="eu-west-1"
 
     local hcl_file="$TERRAFORM_DIR/backend.prod.hcl"
     cat > "$hcl_file" <<EOF

@@ -19,8 +19,8 @@
             "Rollos",
             "Heizung"
           ],
-          "smallIconUri": "https://raw.githubusercontent.com/jenreh/tiberio/main/docs/logo.png",
-          "largeIconUri": "https://raw.githubusercontent.com/jenreh/tiberio/main/docs/logo.png"
+          "smallIconUri": "https://raw.githubusercontent.com/jenreh/tiberio/main/docs/public/logo.png",
+          "largeIconUri": "https://raw.githubusercontent.com/jenreh/tiberio/main/docs/public/logo.png"
         }
       },
       "isAvailableWorldwide": false,
@@ -31,7 +31,7 @@
     "apis": {
       "smartHome": {
         "endpoint": {
-          "uri": "REPLACE_WITH_DIRECTIVE_LAMBDA_ARN (terraform output directive_lambda_arn, z. B. arn:aws:lambda:eu-central-1:<ACCOUNT_ID>:function:tiberio-directive-proxy)"
+          "uri": "REPLACE_WITH_DIRECTIVE_LAMBDA_ARN (terraform output directive_lambda_arn, z. B. arn:aws:lambda:eu-west-1:<ACCOUNT_ID>:function:tiberio-directive-proxy)"
         },
         "regions": {
           "EU": {

@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region for all edge resources."
   type        = string
-  default     = "eu-central-1"
+  default     = "eu-west-1"
 }
 
 variable "name_prefix" {

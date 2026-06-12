@@ -139,14 +139,46 @@ class TestPureHelpers:
         assert smart["regions"]["EU"]["endpoint"]["uri"] == "arn:abc"
         assert template["manifest"]["apis"]["smartHome"]["endpoint"]["uri"] == "X"
 
-    def test_render_account_linking_unwraps(self) -> None:
+    def test_render_account_linking_keeps_wrapper(self) -> None:
+        # SMAPI's accountLinkingClient endpoint rejects an unwrapped object with
+        # HTTP 400 ("empty body"), so the accountLinkingRequest envelope stays.
         template = {"accountLinkingRequest": {"type": "AUTH_CODE"}}
         out = setup_cli.render_account_linking(
             template, authorize_url="https://a", token_url="https://t"
         )
-        assert "accountLinkingRequest" not in out
-        assert out["authorizationUrl"] == "https://a"
-        assert out["accessTokenUrl"] == "https://t"
+        inner = out["accountLinkingRequest"]
+        assert inner["authorizationUrl"] == "https://a"
+        assert inner["accessTokenUrl"] == "https://t"
+
+    def test_render_account_linking_wraps_bare_template(self) -> None:
+        # A template missing the envelope is wrapped defensively.
+        out = setup_cli.render_account_linking(
+            {"type": "AUTH_CODE"}, authorize_url="https://a", token_url="https://t"
+        )
+        assert out["accountLinkingRequest"]["type"] == "AUTH_CODE"
+        assert out["accountLinkingRequest"]["authorizationUrl"] == "https://a"
+
+    def test_render_account_linking_preserves_static_fields(self) -> None:
+        # clientSecret + pkceConfiguration are required by SMAPI and must pass
+        # through render untouched (only the two URLs are substituted).
+        template = {
+            "accountLinkingRequest": {
+                "type": "AUTH_CODE",
+                "clientSecret": "tiberio-public-pkce-client",
+                "pkceConfiguration": {
+                    "status": "ENABLED",
+                    "codeChallengeMethod": "S256",
+                },
+            }
+        }
+        out = setup_cli.render_account_linking(
+            template, authorize_url="https://a", token_url="https://t"
+        )["accountLinkingRequest"]
+        assert out["clientSecret"] == "tiberio-public-pkce-client"
+        assert out["pkceConfiguration"] == {
+            "status": "ENABLED",
+            "codeChallengeMethod": "S256",
+        }
 
     def test_find_placeholders(self) -> None:
         obj = {"a": "REPLACE_WITH_X", "b": ["ok", "REPLACE_WITH_Y"], "c": {"d": "ok"}}
@@ -255,8 +287,8 @@ class TestRender:
         smart = manifest["manifest"]["apis"]["smartHome"]
         assert smart["endpoint"]["uri"] == _OUTPUTS["directive_lambda_arn"]
         linking = json.loads((out_dir / "accountLinking.json").read_text())
-        assert "accountLinkingRequest" not in linking
-        assert linking["authorizationUrl"] == _OUTPUTS["oauth_authorize_url"]
+        inner = linking["accountLinkingRequest"]
+        assert inner["authorizationUrl"] == _OUTPUTS["oauth_authorize_url"]
         # icon placeholder still present -> warning
         assert "placeholder" in result.output.lower()
 
@@ -318,8 +350,11 @@ class TestInfra:
         assert result.exit_code == 0
         commands = [c["args"][1] for c in recorder.calls]
         assert commands == ["bootstrap", "migrate"]
-        # skill id passed as a -var, secret passed via TF_VAR env (never argv)
-        assert "alexa_skill_id=amzn1.ask.skill.abc" in recorder.calls[0]["args"]
+        # skill id passed as a -var to migrate only — the bootstrap module does
+        # not declare alexa_skill_id and terraform errors on undeclared -var.
+        assert "alexa_skill_id=amzn1.ask.skill.abc" not in recorder.calls[0]["args"]
+        assert "alexa_skill_id=amzn1.ask.skill.abc" in recorder.calls[1]["args"]
+        # secret passed via TF_VAR env (never argv)
         assert recorder.calls[0]["env"]["TF_VAR_shared_secret"] == "s" * 40
         assert all(
             "TF_VAR_shared_secret" not in arg
@@ -370,6 +405,12 @@ class TestInfra:
 
 
 class TestLink:
+    @pytest.fixture(autouse=True)
+    def _ask_configured(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Default the ASK CLI to "configured"; the not-configured path has its
+        # own test that overrides this.
+        monkeypatch.setattr(setup_cli, "ask_configured", lambda: True)
+
     def _render_build(self, skill_package: Path, *, with_icon: bool) -> Path:
         out_dir = skill_package / "build"
         out_dir.mkdir()
@@ -424,6 +465,19 @@ class TestLink:
         )
         assert result.exit_code == 1
         assert "ask" in result.output.lower()
+
+    def test_link_unconfigured_ask_fails(
+        self, monkeypatch: pytest.MonkeyPatch, skill_package: Path
+    ) -> None:
+        out_dir = self._render_build(skill_package, with_icon=False)
+        monkeypatch.setattr(setup_cli, "tool_available", lambda _: True)
+        monkeypatch.setattr(setup_cli, "ask_configured", lambda: False)
+        result = runner.invoke(
+            setup_cli.app,
+            ["link", "--skill-id", "x", "--out-dir", str(out_dir)],
+        )
+        assert result.exit_code == 1
+        assert "ask configure" in result.output.lower()
 
     def test_link_blocks_on_placeholders(
         self, monkeypatch: pytest.MonkeyPatch, skill_package: Path
@@ -480,6 +534,10 @@ class TestLink:
 
 
 class TestRunAll:
+    @pytest.fixture(autouse=True)
+    def _ask_configured(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(setup_cli, "ask_configured", lambda: True)
+
     def test_full_flow(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, skill_package: Path
     ) -> None:
@@ -557,3 +615,64 @@ class TestRunAll:
         joined = [" ".join(c["args"]) for c in recorder.calls]
         assert not any("bootstrap" in j for j in joined)
         assert not any("update-skill-manifest" in j for j in joined)
+
+    def test_skips_bootstrap_when_already_done(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, skill_package: Path
+    ) -> None:
+        tf_dir = tmp_path / "terraform"
+        (tf_dir / "bootstrap").mkdir(parents=True)
+        (tf_dir / "deploy-aws.sh").write_text("#!/usr/bin/env zsh\n")
+        # A populated bootstrap state means the state bucket already exists.
+        (tf_dir / "bootstrap" / "terraform.tfstate").write_text(
+            json.dumps({"resources": [{"type": "aws_s3_bucket"}]})
+        )
+        env_file = tmp_path / ".env"
+        monkeypatch.setattr(setup_cli, "tool_available", lambda _: True)
+        recorder = _RecordingRunner({"deployment_summary": json.dumps(_OUTPUTS)})
+        monkeypatch.setattr(setup_cli, "run_command", recorder)
+
+        result = runner.invoke(
+            setup_cli.app,
+            [
+                "run",
+                "--skill-id",
+                "amzn1.ask.skill.abc",
+                "--tf-dir",
+                str(tf_dir),
+                "--skill-package",
+                str(skill_package),
+                "--env-file",
+                str(env_file),
+                "--skip-link",
+                "--yes",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "already bootstrapped" in result.output
+        # Inspect the deploy-aws.sh command verbs (args[1]) — the tmp path name
+        # itself contains "bootstrap", so a substring match would false-positive.
+        verbs = [
+            c["args"][1]
+            for c in recorder.calls
+            if c["args"][0].endswith("deploy-aws.sh")
+        ]
+        assert verbs == ["migrate"]
+
+
+class TestBootstrapDone:
+    def test_missing_state_is_not_done(self, tmp_path: Path) -> None:
+        assert setup_cli._bootstrap_done(tmp_path) is False
+
+    def test_empty_resources_is_not_done(self, tmp_path: Path) -> None:
+        (tmp_path / "bootstrap").mkdir()
+        (tmp_path / "bootstrap" / "terraform.tfstate").write_text(
+            json.dumps({"resources": []})
+        )
+        assert setup_cli._bootstrap_done(tmp_path) is False
+
+    def test_populated_state_is_done(self, tmp_path: Path) -> None:
+        (tmp_path / "bootstrap").mkdir()
+        (tmp_path / "bootstrap" / "terraform.tfstate").write_text(
+            json.dumps({"resources": [{"type": "aws_s3_bucket"}]})
+        )
+        assert setup_cli._bootstrap_done(tmp_path) is True

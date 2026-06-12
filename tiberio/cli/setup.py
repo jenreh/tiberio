@@ -88,6 +88,15 @@ def tool_available(name: str) -> bool:
     return shutil.which(name) is not None
 
 
+def ask_configured() -> bool:
+    """True when the ASK CLI is authenticated (``ask configure`` has run).
+
+    The CLI stores its credentials in ``~/.ask/cli_config``; without it every
+    ``ask smapi`` call fails with a CliFileNotFoundError.
+    """
+    return (Path.home() / ".ask" / "cli_config").exists()
+
+
 # ---------------------------------------------------------------------------
 # Pure helpers
 # ---------------------------------------------------------------------------
@@ -145,16 +154,23 @@ def render_skill_manifest(
 def render_account_linking(
     template: dict[str, Any], *, authorize_url: str, token_url: str
 ) -> dict[str, Any]:
-    """Return the *inner* AccountLinkingRequest object the ASK CLI expects.
+    """Return the account-linking payload with the OAuth URLs filled in.
 
-    The skill-package template wraps the object under ``accountLinkingRequest``
-    (the SMAPI REST envelope); the ``ask smapi update-account-linking-info
-    --account-linking-request`` flag wants the bare object, so we unwrap.
+    The body is kept wrapped in its ``accountLinkingRequest`` envelope. ``ask
+    smapi update-account-linking-info --account-linking-request file:…`` sends
+    the file content verbatim as the HTTP body, and the SMAPI
+    ``accountLinkingClient`` endpoint rejects an unwrapped object with HTTP 400
+    ("Parsing error due to empty body"). A template without the envelope is
+    wrapped defensively.
     """
-    inner = copy.deepcopy(template.get("accountLinkingRequest", template))
+    rendered = copy.deepcopy(template)
+    inner = rendered.get("accountLinkingRequest")
+    if not isinstance(inner, dict):
+        inner = rendered
+        rendered = {"accountLinkingRequest": inner}
     inner["authorizationUrl"] = authorize_url
     inner["accessTokenUrl"] = token_url
-    return inner
+    return rendered
 
 
 def find_placeholders(obj: Any) -> list[str]:
@@ -272,6 +288,22 @@ def _render(skill_package: Path, out_dir: Path, outputs: dict[str, str]) -> list
     return find_placeholders(manifest) + find_placeholders(linking)
 
 
+def _bootstrap_done(tf_dir: Path) -> bool:
+    """True when the Terraform state-storage bootstrap has already run.
+
+    Bootstrap is a one-time step: it provisions the S3 state bucket and writes
+    its local state to ``bootstrap/terraform.tfstate``. A populated state file
+    (non-empty ``resources``) means the bucket exists, so subsequent runs can
+    skip the bootstrap phase instead of re-init/plan/apply-ing it every time.
+    """
+    state = tf_dir / "bootstrap" / "terraform.tfstate"
+    try:
+        data = json.loads(state.read_text())
+    except json.JSONDecodeError, OSError:
+        return False
+    return bool(data.get("resources"))
+
+
 def _deploy_infra(
     tf_dir: Path,
     *,
@@ -293,15 +325,18 @@ def _deploy_infra(
             # the command line / process table.
             env["TF_VAR_shared_secret"] = shared
 
-    common: list[str] = []
+    # The bootstrap module only provisions state storage and declares neither
+    # alexa_skill_id nor shared_secret. Terraform errors on -var for an
+    # undeclared variable, so alexa_skill_id is passed to migrate only.
+    base_args: list[str] = []
     if tfvars is not None:
-        common += ["--tfvars", str(tfvars)]
-    common += ["-var", f"alexa_skill_id={skill_id}"]
+        base_args += ["--tfvars", str(tfvars)]
+    migrate_args = [*base_args, "-var", f"alexa_skill_id={skill_id}"]
 
     if not skip_bootstrap:
-        run_command([str(deploy), "bootstrap", *common], cwd=tf_dir, env=env)
+        run_command([str(deploy), "bootstrap", *base_args], cwd=tf_dir, env=env)
     run_command(
-        [str(deploy), "migrate", *common],
+        [str(deploy), "migrate", *migrate_args],
         cwd=tf_dir,
         env=env,
         input_text="y\n" if yes else None,
@@ -319,6 +354,12 @@ def _link(
 ) -> None:
     if not tool_available("ask"):
         _fail("ASK CLI ('ask') not found — install it and run 'ask configure' first")
+    if not ask_configured():
+        _fail(
+            "ASK CLI is not configured (~/.ask/cli_config missing) — run "
+            "'ask configure' to authenticate with your Amazon developer account, "
+            "then re-run this step"
+        )
 
     manifest_file = out_dir / "skill.json"
     linking_file = out_dir / "accountLinking.json"
@@ -561,12 +602,15 @@ def run_all(
 
     if not skip_infra:
         typer.echo("== Infrastructure ==")
+        already_bootstrapped = _bootstrap_done(tf_dir)
+        if already_bootstrapped:
+            typer.echo("State storage already bootstrapped; skipping bootstrap phase.")
         _deploy_infra(
             tf_dir,
             skill_id=skill_id,
             tfvars=tfvars,
             env_file=env_file,
-            skip_bootstrap=False,
+            skip_bootstrap=already_bootstrapped,
             yes=yes,
         )
     else:

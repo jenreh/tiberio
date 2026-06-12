@@ -1,11 +1,16 @@
 {
   "accountLinkingRequest": {
-    "skipOnEnablement": "false",
+    "skipOnEnablement": false,
     "type": "AUTH_CODE",
     "authorizationUrl": "REPLACE_WITH_OAUTH_AUTHORIZE_URL (terraform output oauth_authorize_url, z. B. https://<api-id>.execute-api.eu-central-1.amazonaws.com/oauth/authorize)",
     "accessTokenUrl": "REPLACE_WITH_OAUTH_TOKEN_URL (terraform output oauth_token_url, z. B. https://<api-id>.execute-api.eu-central-1.amazonaws.com/oauth/token)",
     "clientId": "alexa-skill",
+    "clientSecret": "tiberio-public-pkce-client",
     "scopes": ["smart_home"],
-    "accessTokenScheme": "REQUEST_BODY_CREDENTIALS"
+    "accessTokenScheme": "REQUEST_BODY_CREDENTIALS",
+    "pkceConfiguration": {
+      "status": "ENABLED",
+      "codeChallengeMethod": "S256"
+    }
   }
 }
