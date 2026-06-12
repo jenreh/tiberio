@@ -34,20 +34,113 @@ oauth_router = APIRouter(prefix="/oauth", tags=["oauth"])
 _LOGIN_FORM_HTML = """\
 <!DOCTYPE html>
 <html lang="de">
-<head><meta charset="utf-8"><title>tiberio Login</title></head>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tiberio Login</title>
+  <style>
+    :root {{ color-scheme: light dark; }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+      background: #f4f5f7;
+      color: #1a1a2e;
+    }}
+    .card {{
+      width: 100%;
+      max-width: 24rem;
+      background: #fff;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      padding: 2rem 1.75rem;
+    }}
+    h1 {{
+      margin: 0 0 1.5rem;
+      font-size: 1.5rem;
+      text-align: center;
+    }}
+    label {{
+      display: block;
+      margin-bottom: 0.35rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+    }}
+    input[type="text"],
+    input[type="password"] {{
+      width: 100%;
+      /* 16px font-size prevents iOS Safari from zooming on focus */
+      font-size: 16px;
+      padding: 0.8rem 0.9rem;
+      margin-bottom: 1.1rem;
+      border: 1px solid #d0d3dc;
+      border-radius: 10px;
+      background: #fff;
+      color: inherit;
+    }}
+    input:focus {{
+      outline: none;
+      border-color: #5b6cff;
+      box-shadow: 0 0 0 3px rgba(91, 108, 255, 0.2);
+    }}
+    button {{
+      width: 100%;
+      /* 44px min height keeps the primary action an accessible tap target */
+      min-height: 44px;
+      font-size: 1rem;
+      font-weight: 600;
+      padding: 0.85rem;
+      border: none;
+      border-radius: 10px;
+      background: #5b6cff;
+      color: #fff;
+      cursor: pointer;
+    }}
+    button:hover {{ background: #4757e6; }}
+    .error {{
+      margin: 0 0 1rem;
+      padding: 0.7rem 0.9rem;
+      border-radius: 10px;
+      background: #fdecec;
+      color: #b3261e;
+      font-size: 0.9rem;
+      text-align: center;
+    }}
+    @media (prefers-color-scheme: dark) {{
+      body {{ background: #16161f; color: #e8e8ef; }}
+      .card {{ background: #1f1f2b; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }}
+      input[type="text"],
+      input[type="password"] {{ background: #16161f; border-color: #3a3a4a; }}
+      .error {{ background: #3a1f1f; color: #ff9b94; }}
+    }}
+  </style>
+</head>
 <body>
+<div class="card">
 <h1>Anmelden</h1>
+{error}
 <form method="post">
   <input type="hidden" name="redirect_uri" value="{redirect_uri}">
   <input type="hidden" name="client_id" value="{client_id}">
   <input type="hidden" name="code_challenge" value="{code_challenge}">
   <input type="hidden" name="code_challenge_method" value="{code_challenge_method}">
   <input type="hidden" name="state" value="{state}">
-  <label>Benutzername: <input type="text" name="username" required></label><br>
-  <label>Passwort: <input type="password" name="password" required></label><br>
+  <label for="username">Benutzername</label>
+  <input type="text" id="username" name="username"
+         autocomplete="username" autocapitalize="none" autocorrect="off"
+         spellcheck="false" required autofocus>
+  <label for="password">Passwort</label>
+  <input type="password" id="password" name="password"
+         autocomplete="current-password" required>
   <button type="submit">Anmelden</button>
 </form>
-{error}
+</div>
 </body>
 </html>
 """
@@ -62,7 +155,7 @@ def _render_login(
     error: str = "",
 ) -> str:
     # All user-controlled values are HTML-escaped before interpolation (XSS prevention)
-    error_html = f"<p style='color:red'>{_html.escape(error)}</p>" if error else ""
+    error_html = f"<p class='error'>{_html.escape(error)}</p>" if error else ""
     return _LOGIN_FORM_HTML.format(
         redirect_uri=_html.escape(redirect_uri, quote=True),
         client_id=_html.escape(client_id, quote=True),

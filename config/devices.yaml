@@ -58,29 +58,46 @@ blinds:
   # Each blind/rollo is controlled via homekit-py (set_position 0–100).
   # invert: true  → 0=fully open, 100=fully closed (use if your motor is inverted)
   # invert: false → 0=fully closed, 100=fully open (HAP default)
-  - id: "kueche-rollo"
+  - id: "rollo.esszimmer"
     friendly_name: "Rollo Küche"
     aliases: ["Küche", "Rollos Küche", "Küchen-Rollo"]
-    homekit_entity_id: "cover.kueche"
-    invert: false
-  - id: "wohnzimmer-rollo"
+    homekit_entity_id: "rollo.esszimmer"
+    invert: true
+  - id: "rollo.balkon"
     friendly_name: "Rollo Wohnzimmer"
     aliases: ["Wohnzimmer Rollo", "Rollo Wohnzimmer"]
-    homekit_entity_id: "cover.wohnzimmer"
-    invert: false
+    homekit_entity_id: "rollo.balkon"
+    invert: true
 
 thermostats:
   # Each thermostat is controlled via fritzctl-py (set_temperature in °C).
   # fritz_name must match the device name as configured on the FRITZ!Box.
-  - id: "wohnzimmer-heizung"
-    friendly_name: "Heizung Wohnzimmer"
+  - id: "09995 0318112"
+    friendly_name: "Heizung Wohnzimmer klein"
     aliases: ["Wohnzimmer", "Heizung im Wohnzimmer", "Wohnzimmer Heizung"]
-    fritz_name: "Wohnzimmer"
+    fritz_name: "Wohnzimmer 1"
     min_celsius: 16.0
-    max_celsius: 24.0
-  - id: "schlafzimmer-heizung"
-    friendly_name: "Heizung Schlafzimmer"
-    aliases: ["Schlafzimmer", "Heizung im Schlafzimmer", "Schlafzimmer Heizung"]
-    fritz_name: "Schlafzimmer"
+    max_celsius: 28.0
+  - id: "09995 0330827"
+    friendly_name: "Wohnzimmer groß"
+    aliases:
+      [
+        "Wohnzimmer groß",
+        "Heizung im Wohnzimmer groß",
+        "Wohnzimmer Heizung groß",
+      ]
+    fritz_name: "Wohnzimmer Groß"
     min_celsius: 15.0
-    max_celsius: 22.0
+    max_celsius: 28.0
+  - id: "09995 0554262"
+    friendly_name: "Heizung Bad"
+    aliases: ["Bad", "Heizung im Bad", "Bad Heizung"]
+    fritz_name: "Bad"
+    min_celsius: 15.0
+    max_celsius: 28.0
+  - id: "09995 0553346"
+    friendly_name: "Heizung Büro"
+    aliases: ["Büro", "Heizung im Büro", "Büro Heizung"]
+    fritz_name: "Büro"
+    min_celsius: 15.0
+    max_celsius: 28.0

@@ -252,3 +252,126 @@ class TestCapabilityGuard:
         audio = TvAudio(id="tv-audio", name="Fernseher", adapter="harmony")
         with pytest.raises(DeviceCapabilityError):
             await adapter.set_range(audio, 50)
+
+
+# ---------------------------------------------------------------------------
+# Daemon-backed lifecycle (no injected client)
+# ---------------------------------------------------------------------------
+
+
+class _FakeDaemonConfig:
+    socket_path = "test-homekit.sock"
+    auto_spawn = True
+    log_path = "test-homekit.log"
+
+
+class _FakeConfig:
+    daemon = _FakeDaemonConfig()
+
+
+class _FakeRpc:
+    """Stand-in for DaemonRpcClient: tracks connect/close, never shuts down."""
+
+    def __init__(self, socket_path: object) -> None:
+        self.socket_path = socket_path
+        self.connect_count = 0
+        self.close_count = 0
+        self.shutdown_called = False
+
+    async def connect(self) -> None:
+        self.connect_count += 1
+
+    async def close(self) -> None:
+        self.close_count += 1
+
+
+@pytest.fixture
+def daemon_patches(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+    """Patch the homekit daemon collaborators imported into the adapter module."""
+    import tiberio.adapters.homekit_blind_adapter as mod
+
+    created: dict[str, object] = {"rpcs": [], "ensure_calls": []}
+
+    async def fake_ensure_running(socket_path, *, auto_spawn, log_path):  # type: ignore[no-untyped-def]
+        created["ensure_calls"].append((socket_path, auto_spawn, log_path))
+        return True
+
+    def fake_rpc_factory(socket_path):  # type: ignore[no-untyped-def]
+        rpc = _FakeRpc(socket_path)
+        created["rpcs"].append(rpc)
+        return rpc
+
+    def fake_load_config() -> _FakeConfig:
+        return _FakeConfig()
+
+    def fake_remote_client(rpc: object) -> FakeHomeKitClient:
+        return FakeHomeKitClient()
+
+    monkeypatch.setattr(mod, "load_config", fake_load_config)
+    monkeypatch.setattr(mod, "ensure_running", fake_ensure_running)
+    monkeypatch.setattr(mod, "DaemonRpcClient", fake_rpc_factory)
+    monkeypatch.setattr(mod, "RemoteHomeKitClient", fake_remote_client)
+    return created
+
+
+class TestDaemonLifecycle:
+    async def test_start_spawns_and_connects(
+        self, daemon_patches: dict[str, object]
+    ) -> None:
+        adapter = HomeKitBlindAdapter()
+        await adapter.start()
+        rpcs = cast(list[_FakeRpc], daemon_patches["rpcs"])
+        assert len(rpcs) == 1
+        assert rpcs[0].connect_count == 1
+        assert daemon_patches["ensure_calls"] == [
+            ("test-homekit.sock", True, "test-homekit.log")
+        ]
+
+    async def test_stop_closes_connection_without_shutting_daemon_down(
+        self, daemon_patches: dict[str, object]
+    ) -> None:
+        adapter = HomeKitBlindAdapter()
+        await adapter.start()
+        await adapter.stop()
+        rpcs = cast(list[_FakeRpc], daemon_patches["rpcs"])
+        # Connection closed, but the daemon was never asked to shut down.
+        assert rpcs[0].close_count == 1
+        assert rpcs[0].shutdown_called is False
+
+    async def test_unreachable_daemon_raises_unavailable(
+        self, monkeypatch: pytest.MonkeyPatch, daemon_patches: dict[str, object]
+    ) -> None:
+        import tiberio.adapters.homekit_blind_adapter as mod
+
+        async def unreachable(socket_path, *, auto_spawn, log_path):  # type: ignore[no-untyped-def]
+            return False
+
+        monkeypatch.setattr(mod, "ensure_running", unreachable)
+        with pytest.raises(DeviceUnavailableError):
+            await HomeKitBlindAdapter().start()
+
+    async def test_set_position_reconnects_after_transport_drop(
+        self, monkeypatch: pytest.MonkeyPatch, daemon_patches: dict[str, object]
+    ) -> None:
+        import tiberio.adapters.homekit_blind_adapter as mod
+
+        # First client fails with a transport error; second one succeeds.
+        good = FakeHomeKitClient()
+        clients = iter(
+            [
+                FakeHomeKitClient(
+                    raise_on_set=HomeKitError("Daemon connection closed")
+                ),
+                good,
+            ]
+        )
+        monkeypatch.setattr(mod, "RemoteHomeKitClient", lambda rpc: next(clients))
+
+        adapter = HomeKitBlindAdapter()
+        await adapter.start()
+        await adapter.set_range(_blind(), 40)
+
+        assert good.set_position_calls == [("cover.kueche", 40)]
+        # Reconnected: a second RPC connection was opened.
+        rpcs = cast(list[_FakeRpc], daemon_patches["rpcs"])
+        assert len(rpcs) == 2
