@@ -16,13 +16,16 @@ from pantau.adapters.fritz_thermostat_adapter import FritzThermostatAdapter
 from pantau.adapters.harmony_tv_adapter import HarmonyTvAdapter
 from pantau.adapters.homekit_blind_adapter import HomeKitBlindAdapter
 from pantau.adapters.jwt_service import JwtService
+from pantau.adapters.mock_beacon_publisher import MockBeaconPublisher
 from pantau.adapters.mock_blind_adapter import MockBlindAdapter
 from pantau.adapters.mock_thermostat_adapter import MockThermostatAdapter
 from pantau.adapters.mock_token_validator import MockTokenValidator
 from pantau.adapters.mock_tv_adapter import MockTvAdapter
 from pantau.adapters.password_hasher import BcryptPasswordHasher
+from pantau.adapters.s3_beacon_publisher import S3BeaconPublisher
 from pantau.adapters.sqlite_user_store import SqliteUserStore
 from pantau.adapters.yaml_device_registry import YamlDeviceRegistry
+from pantau.application.publish_beacon import PublishBeaconUseCase
 from pantau.commands.adjust_range import AdjustRangeCommand
 from pantau.commands.adjust_temperature import AdjustTemperatureCommand
 from pantau.commands.adjust_volume import AdjustVolumeCommand
@@ -45,6 +48,7 @@ from pantau.interfaces.alexa.handlers.speaker import SpeakerHandler
 from pantau.interfaces.alexa.handlers.thermostat import ThermostatHandler
 from pantau.interfaces.alexa.router import AlexaDirectiveRouter
 from pantau.ports.auth_code_store_port import AuthCodeStorePort
+from pantau.ports.beacon_publisher_port import BeaconPublisherPort
 from pantau.ports.device_registry_port import DeviceRegistryPort
 from pantau.ports.password_hasher_port import PasswordHasherPort
 from pantau.ports.token_issuer_port import TokenIssuerPort
@@ -152,6 +156,8 @@ def build_container(settings: Settings) -> Container:
     )
     user_store = SqliteUserStore(settings.users_db_path)
     auth_codes = AuthCodeStore()
+    beacon_publisher = _build_beacon_publisher(settings)
+    publish_beacon = PublishBeaconUseCase(beacon_publisher, settings.public_base_url)
 
     container = (
         Container()
@@ -164,10 +170,33 @@ def build_container(settings: Settings) -> Container:
         .register(UserStorePort, user_store)  # type: ignore[type-abstract]
         .register(AuthCodeStorePort, auth_codes)  # type: ignore[type-abstract]
         .register(PasswordHasherPort, BcryptPasswordHasher())  # type: ignore[type-abstract]
+        .register(BeaconPublisherPort, beacon_publisher)  # type: ignore[type-abstract]
+        .register(PublishBeaconUseCase, publish_beacon)
     )
 
     _wire_commands_and_router(container)
     return container
+
+
+def _build_beacon_publisher(settings: Settings) -> BeaconPublisherPort:
+    """Select the beacon publisher adapter from settings.
+
+    ``beacon_enabled`` is the single active/inactive predicate; the app
+    startup validation guarantees ``public_base_url`` is set when enabled.
+    """
+    if settings.beacon_enabled:
+        log.info(
+            "Beacon publisher: S3 (bucket=%s, key=%s)",
+            settings.s3_beacon_bucket,
+            settings.s3_beacon_key,
+        )
+        return S3BeaconPublisher(
+            bucket=settings.s3_beacon_bucket,
+            key=settings.s3_beacon_key,
+            region=settings.aws_region,
+        )
+    log.debug("Beacon publisher: mock (beacon disabled)")
+    return MockBeaconPublisher()
 
 
 def _wire_commands_and_router(container: Container) -> None:
@@ -235,6 +264,7 @@ def build_test_container(devices_config_path: Path) -> Container:
     mock_tv = MockTvAdapter()
     mock_blind = MockBlindAdapter()
     mock_thermostat = MockThermostatAdapter()
+    mock_beacon = MockBeaconPublisher()
 
     container = (
         Container()
@@ -243,6 +273,8 @@ def build_test_container(devices_config_path: Path) -> Container:
         .register(MockBlindAdapter, mock_blind, adapter_name=ADAPTER_HOMEKIT)
         .register(MockThermostatAdapter, mock_thermostat, adapter_name=ADAPTER_FRITZ)
         .register(TokenValidatorPort, MockTokenValidator())  # type: ignore[type-abstract]
+        .register(BeaconPublisherPort, mock_beacon)  # type: ignore[type-abstract]
+        .register(PublishBeaconUseCase, PublishBeaconUseCase(mock_beacon, ""))
     )
     _wire_commands_and_router(container)
     return container

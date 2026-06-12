@@ -18,8 +18,8 @@ See [Developer Documentation](https://pantau-alexa.readthedocs.io/en/latest/) fo
 | 2     | Real device adapters (Harmony, Fritz, HomeKit) | ✅ Done    |
 | 3     | Alexa Smart Home directive layer               | ✅ Done    |
 | 4     | OAuth2 / Account Linking (IdP)                 | ✅ Done    |
-| 5     | AWS Edge: Lambda-Proxy + S3-Beacon + Terraform | ⬜ Planned |
-| 6     | Skill configuration & E2E hardening            | ⬜ Planned |
+| 5     | AWS Edge: Lambda-Proxy + S3-Beacon + Terraform | ✅ Done    |
+| 6     | Skill configuration & E2E assets               | ✅ Done    |
 
 ## Phase 4 — OAuth2 / Account Linking
 
@@ -38,6 +38,20 @@ Users are stored in SQLite (`aiosqlite`). Passwords are hashed with `bcrypt`. Ac
 - **HMAC request signing** — When `PANTAU_SHARED_SECRET` is set, `/alexa/directive` requires `X-Pantau-Timestamp` and `X-Pantau-Signature` headers (HMAC-SHA256, 5-minute replay window).
 - **Rate limiting** — Sliding-window limiter on login and token endpoints (per client IP / username).
 - **JWT startup validation** — Server refuses to start when `PANTAU_JWT_SECRET` is absent or too short (unless `PANTAU_DEV_MODE=true`).
+
+## Phase 5 — AWS Edge
+
+Terraform ([terraform/](terraform/)) provisions the stable AWS front for the skill:
+
+- **Directive Lambda** ([lambda/directive_proxy/](lambda/directive_proxy/)) — resolves the home server's tunnel URL from the S3 beacon (conditional GET, ETag cached) and forwards the directive with HMAC headers.
+- **OAuth proxy** (API Gateway + [lambda/oauth_proxy/](lambda/oauth_proxy/)) — stable `/oauth/*` URLs for account linking, transparently proxied to the home server.
+- **S3 beacon bucket** — versioned, encrypted `endpoint.json`; the home server publishes its current tunnel URL.
+
+## Phase 6 — Skill configuration & E2E assets
+
+- **[skill-package/](skill-package/)** — Smart Home skill manifest (`skill.json`, de-DE) and account-linking template (`accountLinking.json`) with placeholders for the terraform outputs.
+- **[docs/skill-setup.md](docs/skill-setup.md)** — setup runbook: terraform outputs → Alexa console, account linking, device discovery, and the German E2E verification checklist (incl. documented risks: mute drift, NLU phrasing).
+- **[scripts/sample-events/](scripts/sample-events/)** — Alexa v3 directive test events for the directive Lambda (`aws lambda invoke` / `sam local`).
 
 ## Architecture
 

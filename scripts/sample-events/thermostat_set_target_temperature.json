@@ -1,0 +1,25 @@
+{
+  "directive": {
+    "header": {
+      "namespace": "Alexa.ThermostatController",
+      "name": "SetTargetTemperature",
+      "messageId": "9f6f4d62-9a5e-4c8e-8a3a-6f0f1d1e0004",
+      "correlationToken": "sample-correlation-token-thermostat",
+      "payloadVersion": "3"
+    },
+    "endpoint": {
+      "scope": {
+        "type": "BearerToken",
+        "token": "REPLACE_WITH_ACCESS_TOKEN"
+      },
+      "endpointId": "wohnzimmer-heizung",
+      "cookie": {}
+    },
+    "payload": {
+      "targetSetpoint": {
+        "value": 22.0,
+        "scale": "CELSIUS"
+      }
+    }
+  }
+}

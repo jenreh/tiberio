@@ -71,9 +71,53 @@ def _extract_bearer_token(body: dict) -> str | None:
         return None
 
 
+def _directive_summary(body: dict) -> tuple[str, str, str | None]:
+    """Extract (namespace, name, endpointId) for logging — never the token."""
+    try:
+        directive = body.get("directive", {})
+        header = directive.get("header") or {}
+        endpoint = directive.get("endpoint") or {}
+        return (
+            header.get("namespace", "?"),
+            header.get("name", "?"),
+            endpoint.get("endpointId"),
+        )
+    except AttributeError, TypeError:
+        return "?", "?", None
+
+
+def _log_directive_outcome(
+    response: dict, namespace: str, name: str, endpoint_id: str | None
+) -> None:
+    try:
+        event_header = response.get("event", {}).get("header", {})
+        outcome = event_header.get("name", "?")
+        error_type = response.get("event", {}).get("payload", {}).get("type")
+    except AttributeError, TypeError:
+        outcome, error_type = "?", None
+
+    if outcome == "ErrorResponse":
+        log.warning(
+            "Directive failed: %s.%s endpoint=%s -> ErrorResponse(%s)",
+            namespace,
+            name,
+            endpoint_id,
+            error_type,
+        )
+    else:
+        log.info(
+            "Directive handled: %s.%s endpoint=%s -> %s",
+            namespace,
+            name,
+            endpoint_id,
+            outcome,
+        )
+
+
 @alexa_router.post("/directive")
 async def handle_directive(request: Request) -> JSONResponse:
     """Receive an Alexa Smart Home directive and return an Alexa response."""
+    # Body size is capped at the boundary by BodySizeLimitMiddleware.
     raw_body = await request.body()
 
     settings = request.app.state.settings
@@ -105,6 +149,10 @@ async def handle_directive(request: Request) -> JSONResponse:
         )
         raise HTTPException(status_code=403, detail="Insufficient scope")
 
+    namespace, name, endpoint_id = _directive_summary(body)
+    log.info("Directive received: %s.%s endpoint=%s", namespace, name, endpoint_id)
+
     router: AlexaDirectiveRouter = request.app.state.container.get(AlexaDirectiveRouter)
     response = await router.route(body)
+    _log_directive_outcome(response, namespace, name, endpoint_id)
     return JSONResponse(response)

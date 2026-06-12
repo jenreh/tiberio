@@ -21,6 +21,13 @@ class DeviceUnavailableError(Exception):
         super().__init__(message)
 
 
+class BeaconPublishError(Exception):
+    """Raised when publishing the endpoint beacon to remote storage fails."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
 class DeviceCapabilityError(Exception):
     """Raised when a found device does not have the requested capability.
 

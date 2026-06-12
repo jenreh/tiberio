@@ -5,6 +5,19 @@ import { withMermaid } from "vitepress-plugin-mermaid";
 const rtdCanonical = process.env.READTHEDOCS_CANONICAL_URL;
 const base = rtdCanonical ? new URL(rtdCanonical).pathname : "/";
 
+const guideSidebar = [
+  {
+    text: "Guide",
+    items: [
+      { text: "What is pantau-alexa?", link: "/guide/" },
+      { text: "Getting Started", link: "/guide/getting-started" },
+      { text: "Configuration Reference", link: "/guide/configuration" },
+      { text: "CLI Reference", link: "/guide/cli" },
+      { text: "Alexa Skill Setup", link: "/skill-setup" },
+    ],
+  },
+];
+
 export default withMermaid({
   title: "pantau-alexa",
   description:
@@ -23,17 +36,8 @@ export default withMermaid({
     ],
 
     sidebar: {
-      "/guide/": [
-        {
-          text: "Guide",
-          items: [
-            { text: "What is pantau-alexa?", link: "/guide/" },
-            { text: "Getting Started", link: "/guide/getting-started" },
-            { text: "Configuration Reference", link: "/guide/configuration" },
-            { text: "CLI Reference", link: "/guide/cli" },
-          ],
-        },
-      ],
+      "/guide/": guideSidebar,
+      "/skill-setup": guideSidebar,
 
       "/architecture/": [
         {
