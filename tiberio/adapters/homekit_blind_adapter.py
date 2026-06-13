@@ -22,6 +22,7 @@ bypasses the daemon entirely.
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from typing import Any, Protocol
 
 from homekit.config import load_config
@@ -51,7 +52,7 @@ class _HomeKitClientLike(Protocol):
 
     async def get_state(self, entity_id: str, *, refresh: bool = False) -> object: ...
 
-    async def list_entities(self) -> list[object]: ...
+    async def list_entities(self) -> Sequence[object]: ...
 
 
 def _as_blind(device: Device) -> WindowBlind:

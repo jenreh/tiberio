@@ -82,8 +82,12 @@ tasks:
       - echo "✅ All modules published successfully"
 
   run:
-    desc: Run the FastAPI server (development mode)
-    cmd: uv run uvicorn tiberio.api.app:create_app --reload --factory --host 0.0.0.0 --port 3040
+    desc: Start the server and ngrok tunnel in the background (logs rotate at 5 MB)
+    cmd: ./scripts/run-dev.sh
+
+  stop:
+    desc: Stop the background server and ngrok tunnel
+    cmd: ./scripts/stop-dev.sh
 
   tunnel:
     desc: Start the ngrok tunnel and publish the beacon with its public URL

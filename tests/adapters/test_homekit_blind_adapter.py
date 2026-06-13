@@ -299,15 +299,17 @@ def daemon_patches(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     """Patch the homekit daemon collaborators imported into the adapter module."""
     import tiberio.adapters.homekit_blind_adapter as mod
 
-    created: dict[str, object] = {"rpcs": [], "ensure_calls": []}
+    rpcs: list[object] = []
+    ensure_calls: list[object] = []
+    created: dict[str, object] = {"rpcs": rpcs, "ensure_calls": ensure_calls}
 
     async def fake_ensure_running(socket_path, *, auto_spawn, log_path):  # type: ignore[no-untyped-def]
-        created["ensure_calls"].append((socket_path, auto_spawn, log_path))
+        ensure_calls.append((socket_path, auto_spawn, log_path))
         return True
 
     def fake_rpc_factory(socket_path):  # type: ignore[no-untyped-def]
         rpc = _FakeRpc(socket_path)
-        created["rpcs"].append(rpc)
+        rpcs.append(rpc)
         return rpc
 
     def fake_load_config() -> _FakeConfig:

@@ -52,11 +52,14 @@ thermostats:
 
 def test_loads_tv_config(registry: YamlDeviceRegistry) -> None:
     tv = registry.get_registry().tv
+    assert tv is not None
     assert tv.watch_activity == "Fernseher"
 
 
 def test_loads_channels(registry: YamlDeviceRegistry) -> None:
-    channels = registry.get_registry().tv.channels
+    tv = registry.get_registry().tv
+    assert tv is not None
+    channels = tv.channels
     assert len(channels) == 2
     ids = {c.id for c in channels}
     assert ids == {"ard", "zdf"}

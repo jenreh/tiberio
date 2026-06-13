@@ -237,6 +237,9 @@ markers = [
 
 [tool.ty.environment]
 python-version = "3.14"
+# The lambda/ dir is added to sys.path at runtime by tests/lambdas/conftest.py
+# (it can't be a package — "lambda" is a keyword), so mirror that for ty.
+extra-paths = ["lambda"]
 
 [tool.ty.src]
 exclude = [
