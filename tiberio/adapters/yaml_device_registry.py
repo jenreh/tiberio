@@ -92,6 +92,8 @@ def _load_tv(tv_raw: dict | None) -> Tv | None:
         id=tv_raw["audio"]["id"],
         name=tv_raw["audio"]["friendly_name"],
         adapter=ADAPTER_HARMONY,
+        aliases=tuple(tv_raw["audio"].get("aliases", [])),
+        watch_activity=watch_activity,
     )
     channels = tuple(
         TvChannel(

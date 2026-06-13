@@ -10,7 +10,7 @@ from harmonyhub.models import ActivityStatus, ChannelResult, CommandResult
 
 from tiberio.adapters.harmony_tv_adapter import HarmonyTvAdapter
 from tiberio.domain.errors import DeviceUnavailableError
-from tiberio.domain.models import TvAudio, TvChannel
+from tiberio.domain.models import Device, TvAudio, TvChannel
 
 
 class FakeHub:
@@ -221,8 +221,13 @@ def _channel(channel_number: str = "2", watch_activity: str = "Fernseher") -> Tv
     )
 
 
-def _audio() -> TvAudio:
-    return TvAudio(id="tv-audio", name="Fernseher", adapter="harmony")
+def _audio(watch_activity: str = "Fernsehen") -> TvAudio:
+    return TvAudio(
+        id="tv-audio",
+        name="Fernseher",
+        adapter="harmony",
+        watch_activity=watch_activity,
+    )
 
 
 class TestTurnOn:
@@ -238,9 +243,22 @@ class TestTurnOn:
         assert hub.started_activities == []
         assert hub.set_channel_calls == ["2"]
 
-    async def test_turn_on_non_channel_device_is_noop(self) -> None:
-        hub = FakeHub()
+    async def test_turn_on_audio_starts_watch_activity(self) -> None:
+        hub = FakeHub(current_activity_label="PowerOff")
         await _adapter(hub).turn_on(_audio())
+        assert hub.started_activities == ["Fernsehen"]
+        assert hub.set_channel_calls == []
+
+    async def test_turn_on_audio_skips_activity_if_already_active(self) -> None:
+        hub = FakeHub(current_activity_label="Fernsehen")
+        await _adapter(hub).turn_on(_audio())
+        assert hub.started_activities == []
+        assert hub.set_channel_calls == []
+
+    async def test_turn_on_unknown_device_is_noop(self) -> None:
+        hub = FakeHub()
+        device = Device(id="x", name="X", adapter="harmony")
+        await _adapter(hub).turn_on(device)
         assert hub.started_activities == []
         assert hub.set_channel_calls == []
         assert hub.send_key_calls == []

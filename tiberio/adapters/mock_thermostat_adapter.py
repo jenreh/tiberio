@@ -17,6 +17,7 @@ class MockThermostatAdapter:
 
     def __init__(self) -> None:
         self._temperatures: dict[str, float] = {}
+        self._current_temperatures: dict[str, float] = {}
         self.set_temperature_calls: list[tuple[Device, float]] = []
         self._devices: list[LiveThermostat] = []
 
@@ -30,6 +31,15 @@ class MockThermostatAdapter:
     async def get_temperature(self, device: Device) -> float:
         temp = self._temperatures.get(device.id, 20.0)
         log.info("MockThermostat: get_temperature device=%s -> %.1f", device.id, temp)
+        return temp
+
+    async def get_current_temperature(self, device: Device) -> float:
+        temp = self._current_temperatures.get(device.id, 21.5)
+        log.info(
+            "MockThermostat: get_current_temperature device=%s -> %.1f",
+            device.id,
+            temp,
+        )
         return temp
 
     async def list_backend(self) -> BackendListResult:

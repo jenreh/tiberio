@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from tiberio.adapters.yaml_device_registry import YamlDeviceRegistry
-from tiberio.domain.models import Thermostat, TvChannel, WindowBlind
+from tiberio.domain.models import Thermostat, TvAudio, TvChannel, WindowBlind
 
 
 @pytest.fixture
@@ -21,6 +21,7 @@ tv:
   audio:
     id: "tv-audio"
     friendly_name: "Fernseher"
+    aliases: ["den Fernseher", "TV"]
   channels:
     - id: "ard"
       friendly_name: "ARD"
@@ -113,6 +114,9 @@ def test_find_device_audio(registry: YamlDeviceRegistry) -> None:
     assert device is not None
     assert device.id == "tv-audio"
     assert device.adapter == "harmony"
+    assert device.aliases == ("den Fernseher", "TV")
+    assert isinstance(device, TvAudio)
+    assert device.watch_activity == "Fernseher"
 
 
 def test_duplicate_device_ids_raise_value_error(tmp_path: Path) -> None:

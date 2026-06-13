@@ -15,13 +15,18 @@ CapabilityKind = Literal["power", "speaker", "range", "thermostat"]
 
 
 class DiscoveredDevice(BaseModel):
-    """Minimal device descriptor used by Phase 3 to build Alexa Discovery responses."""
+    """Minimal device descriptor used by Phase 3 to build Alexa Discovery responses.
+
+    A device may expose several capabilities (e.g. the TV audio endpoint is both
+    a speaker and powerable). The first entry is the *primary* capability and
+    drives the Alexa display category.
+    """
 
     model_config = ConfigDict(frozen=True)
 
     id: str
     name: str
-    capability: CapabilityKind
+    capabilities: tuple[CapabilityKind, ...]
 
 
 class DiscoverDevicesCommand:
@@ -32,7 +37,7 @@ class DiscoverDevicesCommand:
         registry = self._registry.get_registry()
 
         channels = [
-            DiscoveredDevice(id=ch.id, name=ch.name, capability="power")
+            DiscoveredDevice(id=ch.id, name=ch.name, capabilities=("power",))
             for ch in (registry.tv.channels if registry.tv else ())
         ]
         audio = (
@@ -40,18 +45,18 @@ class DiscoverDevicesCommand:
                 DiscoveredDevice(
                     id=registry.tv.audio.id,
                     name=registry.tv.audio.name,
-                    capability="speaker",
+                    capabilities=("speaker", "power"),
                 )
             ]
             if registry.tv
             else []
         )
         blinds = [
-            DiscoveredDevice(id=b.id, name=b.name, capability="range")
+            DiscoveredDevice(id=b.id, name=b.name, capabilities=("range",))
             for b in registry.blinds
         ]
         thermostats = [
-            DiscoveredDevice(id=t.id, name=t.name, capability="thermostat")
+            DiscoveredDevice(id=t.id, name=t.name, capabilities=("thermostat",))
             for t in registry.thermostats
         ]
 

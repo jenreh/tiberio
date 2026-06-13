@@ -58,6 +58,16 @@ class TestPowerController:
         assert prop["namespace"] == "Alexa.PowerController"
         assert prop["value"] == "OFF"
 
+    def test_turn_off_on_audio_endpoint_powers_off(self, client: TestClient) -> None:
+        body = client.post(
+            "/alexa/directive",
+            json=directive("Alexa.PowerController", "TurnOff", endpoint_id="tv-audio"),
+        ).json()
+
+        prop = body["context"]["properties"][0]
+        assert prop["namespace"] == "Alexa.PowerController"
+        assert prop["value"] == "OFF"
+
     def test_unknown_endpoint_returns_error(self, client: TestClient) -> None:
         body = client.post(
             "/alexa/directive",
@@ -164,9 +174,7 @@ class TestSpeaker:
         props = {p["name"]: p for p in body["context"]["properties"]}
         assert props["muted"]["value"] is True
 
-    def test_set_mute_always_reports_both_muted_and_volume(
-        self, client: TestClient
-    ) -> None:
+    def test_set_mute_reports_only_muted_never_volume(self, client: TestClient) -> None:
         body = client.post(
             "/alexa/directive",
             json=directive(
@@ -178,21 +186,11 @@ class TestSpeaker:
         ).json()
         props = {p["name"]: p for p in body["context"]["properties"]}
         assert "muted" in props
-        assert "volume" in props
+        # Volume is never reported — the skill must not touch volume at all.
+        assert "volume" not in props
 
-    def test_set_volume_returns_200(self, client: TestClient) -> None:
-        resp = client.post(
-            "/alexa/directive",
-            json=directive(
-                "Alexa.Speaker",
-                "SetVolume",
-                endpoint_id="tv-audio",
-                payload={"volume": 70},
-            ),
-        )
-        assert resp.status_code == 200
-
-    def test_set_volume_reports_both_muted_and_volume(self, client: TestClient) -> None:
+    def test_set_volume_is_unsupported(self, client: TestClient) -> None:
+        # Volume is deliberately not exposed, so the directive is unroutable.
         body = client.post(
             "/alexa/directive",
             json=directive(
@@ -202,25 +200,10 @@ class TestSpeaker:
                 payload={"volume": 70},
             ),
         ).json()
-        props = {p["name"]: p for p in body["context"]["properties"]}
-        assert props["volume"]["value"] == 70
-        assert "muted" in props
+        assert body["event"]["header"]["name"] == "ErrorResponse"
+        assert body["event"]["payload"]["type"] == "INVALID_DIRECTIVE"
 
-    def test_adjust_volume_returns_200(self, client: TestClient) -> None:
-        resp = client.post(
-            "/alexa/directive",
-            json=directive(
-                "Alexa.Speaker",
-                "AdjustVolume",
-                endpoint_id="tv-audio",
-                payload={"volume": 5},
-            ),
-        )
-        assert resp.status_code == 200
-
-    def test_adjust_volume_reports_both_muted_and_volume(
-        self, client: TestClient
-    ) -> None:
+    def test_adjust_volume_is_unsupported(self, client: TestClient) -> None:
         body = client.post(
             "/alexa/directive",
             json=directive(
@@ -230,9 +213,8 @@ class TestSpeaker:
                 payload={"volume": 5},
             ),
         ).json()
-        props = {p["name"]: p for p in body["context"]["properties"]}
-        assert "muted" in props
-        assert "volume" in props
+        assert body["event"]["header"]["name"] == "ErrorResponse"
+        assert body["event"]["payload"]["type"] == "INVALID_DIRECTIVE"
 
 
 class TestThermostatController:
@@ -546,7 +528,9 @@ class TestDiscovery:
         interfaces = [c["interface"] for c in zdf["capabilities"]]
         assert "Alexa.PowerController" in interfaces
         assert "Alexa" in interfaces
-        assert zdf["displayCategories"] == ["TV"]
+        # Channels are PowerController triggers, not televisions — SWITCH keeps
+        # Alexa from routing "schalte <Sender> ein" into the video domain.
+        assert zdf["displayCategories"] == ["SWITCH"]
 
     def test_discover_audio_has_speaker_capability(self, client: TestClient) -> None:
         body = client.post("/alexa/directive", json=discovery_directive()).json()
@@ -557,6 +541,13 @@ class TestDiscovery:
         )
         interfaces = [c["interface"] for c in audio["capabilities"]]
         assert "Alexa.Speaker" in interfaces
+        speaker_cap = next(
+            c for c in audio["capabilities"] if c["interface"] == "Alexa.Speaker"
+        )
+        supported = {p["name"] for p in speaker_cap["properties"]["supported"]}
+        # Volume must not be advertised, or Alexa would send volume directives.
+        assert supported == {"muted"}
+        assert "Alexa.PowerController" in interfaces
         assert audio["displayCategories"] == ["SPEAKER"]
 
     def test_discover_thermostat_has_thermostat_controller(
@@ -579,6 +570,31 @@ class TestDiscovery:
         )
         # Must be retrievable so Alexa queries and displays the current setpoint.
         assert thermostat_cap["properties"]["retrievable"] is True
+        # thermostatMode is required for the Alexa app to render the control.
+        supported = {p["name"] for p in thermostat_cap["properties"]["supported"]}
+        assert supported == {"targetSetpoint", "thermostatMode"}
+
+    def test_discover_thermostat_pairs_temperature_sensor(
+        self, client: TestClient
+    ) -> None:
+        body = client.post("/alexa/directive", json=discovery_directive()).json()
+        thermostat = next(
+            e
+            for e in body["event"]["payload"]["endpoints"]
+            if e["endpointId"] == "wohnzimmer-heizung"
+        )
+        interfaces = [c["interface"] for c in thermostat["capabilities"]]
+        # The current room temperature is exposed via Alexa.TemperatureSensor so
+        # the thermostat tile shows a live reading and stays interactive.
+        assert "Alexa.TemperatureSensor" in interfaces
+        sensor_cap = next(
+            c
+            for c in thermostat["capabilities"]
+            if c.get("interface") == "Alexa.TemperatureSensor"
+        )
+        assert sensor_cap["properties"]["retrievable"] is True
+        # EndpointHealth lets Alexa confirm reachability so the dial renders.
+        assert "Alexa.EndpointHealth" in interfaces
 
     def test_discover_blind_has_range_controller_with_instance(
         self, client: TestClient
@@ -780,16 +796,14 @@ class TestAdjustRangeValue:
 class TestCapabilityMismatch:
     """Capability mismatches must map to INVALID_VALUE, never INTERNAL_ERROR."""
 
-    def test_set_volume_on_blind_returns_invalid_value(
-        self, client: TestClient
-    ) -> None:
+    def test_set_mute_on_blind_returns_invalid_value(self, client: TestClient) -> None:
         body = client.post(
             "/alexa/directive",
             json=directive(
                 "Alexa.Speaker",
-                "SetVolume",
+                "SetMute",
                 endpoint_id="kueche-rollo",
-                payload={"volume": 30},
+                payload={"mute": True},
             ),
         ).json()
 
@@ -815,19 +829,6 @@ class TestCapabilityMismatch:
 
 class TestPayloadValidation:
     """Missing or mistyped payload fields must be rejected, not defaulted."""
-
-    def test_set_volume_without_volume_returns_invalid_value(
-        self, client: TestClient
-    ) -> None:
-        body = client.post(
-            "/alexa/directive",
-            json=directive(
-                "Alexa.Speaker", "SetVolume", endpoint_id="tv-audio", payload={}
-            ),
-        ).json()
-
-        assert body["event"]["header"]["name"] == "ErrorResponse"
-        assert body["event"]["payload"]["type"] == "INVALID_VALUE"
 
     def test_set_range_without_range_value_returns_invalid_value(
         self, client: TestClient
@@ -1024,10 +1025,18 @@ class TestReportState:
             json=directive("Alexa", "ReportState", endpoint_id="wohnzimmer-heizung"),
         ).json()
 
-        prop = body["context"]["properties"][0]
-        assert prop["namespace"] == "Alexa.ThermostatController"
-        assert prop["name"] == "targetSetpoint"
-        assert prop["value"] == {"value": 21.0, "scale": "CELSIUS"}
+        props = body["context"]["properties"]
+        by_name = {p["name"]: p for p in props}
+
+        assert by_name["targetSetpoint"]["namespace"] == "Alexa.ThermostatController"
+        assert by_name["targetSetpoint"]["value"] == {"value": 21.0, "scale": "CELSIUS"}
+        # thermostatMode + a TemperatureSensor reading make the tile interactive.
+        assert by_name["thermostatMode"]["value"] == "HEAT"
+        assert by_name["temperature"]["namespace"] == "Alexa.TemperatureSensor"
+        assert by_name["temperature"]["value"]["scale"] == "CELSIUS"
+        # Reachability must be reported or the dial spins indefinitely.
+        assert by_name["connectivity"]["namespace"] == "Alexa.EndpointHealth"
+        assert by_name["connectivity"]["value"] == {"value": "OK"}
 
     def test_report_state_blind_reports_range_value(self, client: TestClient) -> None:
         client.post(

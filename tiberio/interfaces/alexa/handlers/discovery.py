@@ -32,7 +32,9 @@ def _speaker_capability() -> dict:
         "interface": "Alexa.Speaker",
         "version": "3",
         "properties": {
-            "supported": [{"name": "volume"}, {"name": "muted"}],
+            # Mute only. Volume is intentionally omitted so Alexa never sends
+            # SetVolume/AdjustVolume — the skill must not change the volume.
+            "supported": [{"name": "muted"}],
             "proactivelyReported": False,
             "retrievable": False,
         },
@@ -45,13 +47,39 @@ def _thermostat_capability() -> dict:
         "interface": "Alexa.ThermostatController",
         "version": "3",
         "properties": {
-            "supported": [{"name": "targetSetpoint"}],
+            "supported": [{"name": "targetSetpoint"}, {"name": "thermostatMode"}],
             "proactivelyReported": False,
             "retrievable": True,
         },
         "configuration": {
             "supportedModes": ["HEAT"],
             "supportsScheduling": False,
+        },
+    }
+
+
+def _temperature_sensor_capability() -> dict:
+    return {
+        "type": "AlexaInterface",
+        "interface": "Alexa.TemperatureSensor",
+        "version": "3",
+        "properties": {
+            "supported": [{"name": "temperature"}],
+            "proactivelyReported": False,
+            "retrievable": True,
+        },
+    }
+
+
+def _endpoint_health_capability() -> dict:
+    return {
+        "type": "AlexaInterface",
+        "interface": "Alexa.EndpointHealth",
+        "version": "3",
+        "properties": {
+            "supported": [{"name": "connectivity"}],
+            "proactivelyReported": False,
+            "retrievable": True,
         },
     }
 
@@ -134,23 +162,47 @@ def _range_capability() -> dict:
 
 
 _CAPABILITY_BY_KIND = {
-    "power": (_power_capability, "TV", "TV-Kanal"),
+    "power": (_power_capability, "SWITCH", "TV-Kanal"),
     "speaker": (_speaker_capability, "SPEAKER", "TV-Lautsprecher"),
     "thermostat": (_thermostat_capability, "THERMOSTAT", "Heizungsthermostat"),
     "range": (_range_capability, "INTERIOR_BLIND", "Rollo / Jalousie"),
 }
 
+# Secondary interfaces a capability kind always exposes alongside its primary.
+# A thermostat pairs ThermostatController with TemperatureSensor so the Alexa
+# app renders the current room temperature and an interactive control.
+_EXTRA_CAPABILITIES_BY_KIND = {
+    "thermostat": (_temperature_sensor_capability, _endpoint_health_capability),
+}
+
 
 def _build_endpoint(device: DiscoveredDevice) -> dict | None:
-    entry = _CAPABILITY_BY_KIND.get(device.capability)
-    if entry is None:
+    primary = _CAPABILITY_BY_KIND.get(device.capabilities[0])
+    if primary is None:
         log.warning(
             "DiscoveryHandler: unknown capability %r for device %s — skipped",
-            device.capability,
+            device.capabilities[0],
             device.id,
         )
         return None
-    cap_factory, category, description = entry
+    _, category, description = primary
+
+    capabilities = []
+    for kind in device.capabilities:
+        entry = _CAPABILITY_BY_KIND.get(kind)
+        if entry is None:
+            log.warning(
+                "DiscoveryHandler: unknown capability %r for device %s — skipped",
+                kind,
+                device.id,
+            )
+            continue
+        capabilities.append(entry[0]())
+        capabilities.extend(
+            extra() for extra in _EXTRA_CAPABILITIES_BY_KIND.get(kind, ())
+        )
+    capabilities.append(_ALEXA_BASE)
+
     return {
         "endpointId": device.id,
         "friendlyName": device.name,
@@ -158,7 +210,7 @@ def _build_endpoint(device: DiscoveredDevice) -> dict | None:
         "manufacturerName": "tiberio",
         "displayCategories": [category],
         "cookie": {},
-        "capabilities": [cap_factory(), _ALEXA_BASE],
+        "capabilities": capabilities,
     }
 
 

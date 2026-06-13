@@ -2,57 +2,62 @@
 # Adding a new channel or device requires only config changes (no code change).
 #
 
-# tv:
-#   watch_activity: "Fernseher" # Harmony activity name that switches on the TV
-#   aliases: ["den Fernseher", "TV", "Fernsehgerät", "Fernseh Apparat"] # Alexa device name aliases
+tv:
+  watch_activity: "Fernsehen" # Harmony activity name that switches on the TV
 
-#   audio:
-#     id: "tv-audio"
-#     friendly_name: "Fernseher" # "schalte den Fernseher stumm" / "Ton ein"
+  audio:
+    id: "tv-audio"
+    friendly_name: "Fernseher" # "schalte den Fernseher stumm" / "Ton ein"
+    aliases: ["den Fernseher", "TV", "Fernsehgerät", "Fernseh Apparat"] # Alexa device name aliases
 
-#   channels:
-#     # Each channel becomes a separate Alexa PowerController endpoint.
-#     # "Alexa, schalte ZDF ein" → TurnOn on endpoint "zdf"
-#     - id: "ard"
-#       friendly_name: "ARD"
-#       aliases: ["ARD", "Erstes", "Das Erste", "A R D"]
-#       channel_number: "1"
-#     - id: "zdf"
-#       friendly_name: "ZDF"
-#       aliases: ["ZDF", "Zweites", "Z D F", "Zedef", "Zedef", "das zweite"]
-#       channel_number: "2"
-#     - id: "rtl"
-#       friendly_name: "RTL"
-#       aliases: ["RTL", "RTL Television", "RTL TV"]
-#       channel_number: "3"
-#     - id: "sat1"
-#       friendly_name: "SAT.1"
-#       aliases: ["SAT1", "Sat.1", "SAT 1", "sat eins"]
-#       channel_number: "4"
-#     - id: "pro7"
-#       friendly_name: "ProSieben"
-#       aliases: ["Pro7", "ProSieben", "Pro Sieben"]
-#       channel_number: "5"
-#     - id: "rtl2"
-#       friendly_name: "RTL II"
-#       aliases: ["RTL2", "RTL II", "RTL Zwei"]
-#       channel_number: "6"
-#     - id: "vox"
-#       friendly_name: "VOX"
-#       aliases: ["VOX", "wox"]
-#       channel_number: "7"
-#     - id: "kabel1"
-#       friendly_name: "Kabel Eins"
-#       aliases: ["Kabel 1", "Kabel Eins", "Kabel1"]
-#       channel_number: "8"
-#     - id: "zdfNeo"
-#       friendly_name: "ZDFneo"
-#       aliases: ["ZDFneo", "ZDF Neo", "ZDF NEO"]
-#       channel_number: "9"
-#     - id: "sixx"
-#       friendly_name: "sixx"
-#       aliases: ["sixx", "six", "sicks"]
-#       channel_number: "10"
+  channels:
+    # Each channel becomes a separate Alexa PowerController endpoint.
+    # "Alexa, schalte ZDF ein" → TurnOn on endpoint "zdf"
+    # endpointIds are stable, so renaming friendly_name + rediscovery updates the
+    # existing Alexa endpoint in place (no duplicate created).
+    - id: "ard"
+      friendly_name: "ARD"
+      aliases: ["ARD", "Erstes", "Das Erste", "A R D"]
+      channel_number: "1"
+    - id: "zdf"
+      friendly_name: "ZDF"
+      aliases: ["ZDF", "Zweites", "Z D F", "Zedef", "Zedef", "das zweite"]
+      channel_number: "2"
+    - id: "rtl"
+      friendly_name: "RTL"
+      aliases: ["RTL", "RTL Television", "RTL TV"]
+      channel_number: "3"
+    - id: "sat1"
+      friendly_name: "SAT 1"
+      aliases: ["SAT1", "Sat.1", "SAT 1", "sat eins"]
+      channel_number: "4"
+    - id: "pro7"
+      # friendly_name must be the exact phrase you say. Alexa allows only ONE
+      # name per endpoint (aliases below never reach Alexa); a bare channel name
+      # like "ProSieben" also collides with Alexa's native video domain.
+      friendly_name: "Pro 7"
+      aliases: ["Pro7", "ProSieben", "Pro Sieben"]
+      channel_number: "5"
+    - id: "rtl2"
+      friendly_name: "RTL 2"
+      aliases: ["RTL2", "RTL II", "RTL Zwei"]
+      channel_number: "6"
+    - id: "vox"
+      friendly_name: "VOX"
+      aliases: ["VOX", "wox"]
+      channel_number: "7"
+    - id: "kabel1"
+      friendly_name: "Kabel Eins"
+      aliases: ["Kabel 1", "Kabel Eins", "Kabel1"]
+      channel_number: "8"
+    - id: "zdfNeo"
+      friendly_name: "ZDFneo"
+      aliases: ["ZDFneo", "ZDF Neo", "ZDF NEO"]
+      channel_number: "9"
+    - id: "sixx"
+      friendly_name: "sixx"
+      aliases: ["sixx", "six", "sicks"]
+      channel_number: "10"
 
 blinds:
   # Each blind/rollo is controlled via homekit-py (set_position 0–100).
@@ -74,12 +79,12 @@ thermostats:
   # fritz_name must match the device name as configured on the FRITZ!Box.
   - id: "09995 0318112"
     friendly_name: "Heizung Wohnzimmer klein"
-    aliases: ["Wohnzimmer", "Heizung im Wohnzimmer", "Wohnzimmer Heizung"]
+    aliases: ["Wohnzimmer klein", "Heizung im Wohnzimmer", "Wohnzimmer Heizung"]
     fritz_name: "Wohnzimmer 1"
     min_celsius: 16.0
     max_celsius: 28.0
   - id: "09995 0330827"
-    friendly_name: "Wohnzimmer groß"
+    friendly_name: "Heizung Wohnzimmer groß"
     aliases:
       [
         "Wohnzimmer groß",

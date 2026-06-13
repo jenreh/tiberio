@@ -28,7 +28,6 @@ from tiberio.adapters.yaml_device_registry import YamlDeviceRegistry
 from tiberio.application.publish_beacon import BeaconPublisher
 from tiberio.commands.adjust_range import AdjustRangeCommand
 from tiberio.commands.adjust_temperature import AdjustTemperatureCommand
-from tiberio.commands.adjust_volume import AdjustVolumeCommand
 from tiberio.commands.discover_devices import DiscoverDevicesCommand
 from tiberio.commands.get_device_state import GetDeviceStateCommand
 from tiberio.commands.get_speaker_state import GetSpeakerStateCommand
@@ -36,7 +35,6 @@ from tiberio.commands.list_connected_devices import ListConnectedDevicesCommand
 from tiberio.commands.set_mute import SetMuteCommand
 from tiberio.commands.set_range import SetRangeCommand
 from tiberio.commands.set_temperature import SetTemperatureCommand
-from tiberio.commands.set_volume import SetVolumeCommand
 from tiberio.commands.turn_off import TurnOffCommand
 from tiberio.commands.turn_on import TurnOnCommand
 from tiberio.config.settings import Settings
@@ -215,8 +213,6 @@ def _wire_commands_and_router(container: Container) -> None:
     turn_on = TurnOnCommand(registry_port, container)  # type: ignore[arg-type]
     turn_off = TurnOffCommand(registry_port, container)  # type: ignore[arg-type]
     set_mute = SetMuteCommand(registry_port, container)  # type: ignore[arg-type]
-    set_volume = SetVolumeCommand(registry_port, container)  # type: ignore[arg-type]
-    adjust_volume = AdjustVolumeCommand(registry_port, container)  # type: ignore[arg-type]
     get_speaker_state = GetSpeakerStateCommand(registry_port, container)  # type: ignore[arg-type]
     set_range = SetRangeCommand(registry_port, container)  # type: ignore[arg-type]
     adjust_range = AdjustRangeCommand(registry_port, container)  # type: ignore[arg-type]
@@ -233,8 +229,6 @@ def _wire_commands_and_router(container: Container) -> None:
     container.register(TurnOnCommand, turn_on)
     container.register(TurnOffCommand, turn_off)
     container.register(SetMuteCommand, set_mute)
-    container.register(SetVolumeCommand, set_volume)
-    container.register(AdjustVolumeCommand, adjust_volume)
     container.register(GetSpeakerStateCommand, get_speaker_state)
     container.register(SetRangeCommand, set_range)
     container.register(AdjustRangeCommand, adjust_range)
@@ -245,9 +239,7 @@ def _wire_commands_and_router(container: Container) -> None:
     container.register(ListConnectedDevicesCommand, list_connected)
 
     power_handler = PowerHandler(turn_on, turn_off)
-    speaker_handler = SpeakerHandler(
-        set_mute, set_volume, adjust_volume, get_speaker_state
-    )
+    speaker_handler = SpeakerHandler(set_mute, get_speaker_state)
     thermostat_handler = ThermostatHandler(set_temperature, adjust_temperature)
     range_handler = RangeHandler(set_range, adjust_range)
     discovery_handler = DiscoveryHandler(discover)

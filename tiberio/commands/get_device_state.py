@@ -20,11 +20,14 @@ class DeviceState:
     """The current state of a device, neutral to any delivery format.
 
     ``capability`` names which controllable aspect ``value`` describes:
-    ``"temperature"`` → degrees Celsius; ``"range"`` → percent (0–100).
+    ``"temperature"`` → target setpoint in °C; ``"range"`` → percent (0–100).
+    ``current_celsius`` carries the measured room temperature for thermostats
+    (``None`` for other devices).
     """
 
     capability: Literal["temperature", "range"]
     value: float
+    current_celsius: float | None = None
 
 
 class GetDeviceStateCommand(DeviceCommand):
@@ -35,10 +38,16 @@ class GetDeviceStateCommand(DeviceCommand):
         if isinstance(device, Thermostat):
             temp_adapter = self._resolver.resolve(device, TemperatureControllablePort)  # type: ignore[type-abstract]
             celsius = await temp_adapter.get_temperature(device)
+            current = await temp_adapter.get_current_temperature(device)
             log.debug(
-                "GetDeviceState: endpoint=%s temperature=%.1f", endpoint_id, celsius
+                "GetDeviceState: endpoint=%s setpoint=%.1f current=%.1f",
+                endpoint_id,
+                celsius,
+                current,
             )
-            return DeviceState(capability="temperature", value=celsius)
+            return DeviceState(
+                capability="temperature", value=celsius, current_celsius=current
+            )
 
         if isinstance(device, WindowBlind):
             range_adapter = self._resolver.resolve(device, RangeControllablePort)  # type: ignore[type-abstract]

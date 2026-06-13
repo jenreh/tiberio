@@ -81,4 +81,5 @@ class ThermostatHandler(AlexaHandler):
                 "targetSetpoint",
                 {"value": applied, "scale": "CELSIUS"},
             ),
+            build_property("Alexa.ThermostatController", "thermostatMode", "HEAT"),
         ]

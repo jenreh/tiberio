@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import TYPE_CHECKING
 
 import httpx
@@ -41,11 +43,19 @@ class FritzThermostatAdapter:
 
     adapter_name = ADAPTER_FRITZ
 
+    # Short window during which a fetched device list is reused. Alexa fires
+    # Alexa.ReportState for every endpoint at once; coalescing the burst into a
+    # single FRITZ!Box round-trip keeps each directive inside Alexa's deadline.
+    _DEVICE_CACHE_TTL = 2.0
+
     def __init__(self, *, client: AVMClientAbstract | None = None) -> None:
         self._injected = client
         self._http: httpx.AsyncClient | None = None
         self._client: AVMClientAbstract | None = client
         self._ain_cache: dict[str, str] = {}  # external_id → AIN
+        self._devices_lock = asyncio.Lock()
+        self._devices_cache: list[FritzThermostat] | None = None
+        self._devices_cached_at = 0.0
 
     async def start(self) -> None:
         """Open the httpx session and auto-detect the AVM API. Call once on startup."""
@@ -76,6 +86,11 @@ class FritzThermostatAdapter:
         """Return the current target temperature for the given device."""
         thermostat = _as_thermostat(device)
         return await self._get_temperature_impl(thermostat.external_id)
+
+    async def get_current_temperature(self, device: Device) -> float:
+        """Return the measured room temperature for the given device."""
+        thermostat = _as_thermostat(device)
+        return await self._get_current_temperature_impl(thermostat.external_id)
 
     # ------------------------------------------------------------------
     # ListablePort
@@ -109,6 +124,7 @@ class FritzThermostatAdapter:
             client = self._get_client()
             ain = await self._resolve_ain(client, external_id)
             await client.set_temperature(ain, celsius)
+            self._devices_cache = None  # reported state changed; force a refetch
             log.info(
                 "FritzThermostat: set_temperature name=%s ain=%s celsius=%.1f",
                 external_id,
@@ -125,8 +141,7 @@ class FritzThermostatAdapter:
 
     async def _get_temperature_impl(self, external_id: str) -> float:
         try:
-            client = self._get_client()
-            device = await self._resolve(client, external_id)
+            device = await self._resolve(external_id)
             log.debug(
                 "FritzThermostat: get_temperature name=%s ain=%s -> %.1f",
                 external_id,
@@ -139,10 +154,24 @@ class FritzThermostatAdapter:
         except (httpx.HTTPError, TimeoutError, PermissionError) as exc:
             raise DeviceUnavailableError(str(exc)) from exc
 
+    async def _get_current_temperature_impl(self, external_id: str) -> float:
+        try:
+            device = await self._resolve(external_id)
+            log.debug(
+                "FritzThermostat: get_current_temperature name=%s ain=%s -> %.1f",
+                external_id,
+                device.id,
+                device.current_temp,
+            )
+            return device.current_temp
+        except DeviceNotFoundError:
+            raise
+        except (httpx.HTTPError, TimeoutError, PermissionError) as exc:
+            raise DeviceUnavailableError(str(exc)) from exc
+
     async def _list_devices(self) -> list[LiveThermostat]:
         try:
-            client = self._get_client()
-            raw = await client.list_devices()
+            raw = await self._fetch_devices()
             log.debug("FritzThermostat: list_devices count=%d", len(raw))
             return [
                 LiveThermostat(
@@ -160,10 +189,27 @@ class FritzThermostatAdapter:
         except (httpx.HTTPError, TimeoutError, PermissionError) as exc:
             raise DeviceUnavailableError(str(exc)) from exc
 
-    async def _resolve(
-        self, client: AVMClientAbstract, external_id: str
-    ) -> FritzThermostat:
-        devices = await client.list_devices()
+    async def _fetch_devices(self) -> list[FritzThermostat]:
+        """Return the FRITZ!Box device list, coalescing concurrent callers.
+
+        Holds a single-flight lock so a burst of simultaneous Alexa.ReportState
+        directives triggers exactly one login + device-list fetch; the rest read
+        the result cached for ``_DEVICE_CACHE_TTL`` seconds.
+        """
+        async with self._devices_lock:
+            now = time.monotonic()
+            if (
+                self._devices_cache is not None
+                and now - self._devices_cached_at < self._DEVICE_CACHE_TTL
+            ):
+                return self._devices_cache
+            devices = await self._get_client().list_devices()
+            self._devices_cache = devices
+            self._devices_cached_at = now
+            return devices
+
+    async def _resolve(self, external_id: str) -> FritzThermostat:
+        devices = await self._fetch_devices()
         self._ain_cache.update({d.name: d.id for d in devices})
         device = next((d for d in devices if d.name == external_id), None)
         if device is None:

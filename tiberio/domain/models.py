@@ -45,7 +45,13 @@ class TvChannel(Device):
 
 
 class TvAudio(Device):
-    """The TV audio endpoint (mute/unmute via Alexa.Speaker)."""
+    """The TV audio endpoint (mute/unmute via Alexa.Speaker, on/off via PowerController).
+
+    ``watch_activity`` is the Harmony activity to start when the endpoint is
+    powered on (turning the TV on).
+    """
+
+    watch_activity: str = ""
 
 
 class Tv(BaseModel):

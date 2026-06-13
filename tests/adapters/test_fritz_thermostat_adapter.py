@@ -195,6 +195,76 @@ class TestGetTemperature:
         )
 
 
+class TestGetCurrentTemperature:
+    async def test_returns_current_temp(self) -> None:
+        # _make_fritz_thermostat fixes current_temp at 18.0°C.
+        client = FakeFritzClient([_make_fritz_thermostat("Wohnzimmer", "ain-1")])
+        temp = await _adapter(client).get_current_temperature(
+            _domain_thermostat("Wohnzimmer")
+        )
+        assert temp == 18.0
+
+    async def test_unknown_name_raises_device_not_found(self) -> None:
+        client = FakeFritzClient([_make_fritz_thermostat("Wohnzimmer", "ain-1")])
+        with pytest.raises(DeviceNotFoundError):
+            await _adapter(client).get_current_temperature(
+                _domain_thermostat("Schlafzimmer")
+            )
+
+    async def test_setpoint_and_current_share_one_fetch(self) -> None:
+        client = FakeFritzClient(
+            [_make_fritz_thermostat("Wohnzimmer", "ain-1", target=21.5)]
+        )
+        adapter = _adapter(client)
+        device = _domain_thermostat("Wohnzimmer")
+
+        setpoint = await adapter.get_temperature(device)
+        current = await adapter.get_current_temperature(device)
+
+        assert (setpoint, current) == (21.5, 18.0)
+        # A single ReportState reads both via one coalesced FRITZ!Box round-trip.
+        assert client.list_calls == 1
+
+
+class TestDeviceListCoalescing:
+    async def test_concurrent_reads_share_one_fetch(self) -> None:
+        import asyncio
+
+        devices = [
+            _make_fritz_thermostat("Wohnzimmer", "ain-w", target=22.0),
+            _make_fritz_thermostat("Bad", "ain-b", target=21.0),
+        ]
+        client = FakeFritzClient(devices)
+        adapter = _adapter(client)
+
+        results = await asyncio.gather(
+            adapter.get_temperature(_domain_thermostat("Wohnzimmer")),
+            adapter.get_temperature(_domain_thermostat("Bad")),
+            adapter.get_temperature(_domain_thermostat("Wohnzimmer")),
+        )
+
+        assert results == [22.0, 21.0, 22.0]
+        # The burst collapses into a single FRITZ!Box round-trip.
+        assert client.list_calls == 1
+
+    async def test_set_temperature_invalidates_read_cache(self) -> None:
+        device = _make_fritz_thermostat("Wohnzimmer", "ain-w", target=20.0)
+        client = FakeFritzClient([device])
+        adapter = _adapter(client)
+        domain_device = _domain_thermostat("Wohnzimmer")
+
+        await adapter.get_temperature(domain_device)
+        assert client.list_calls == 1
+
+        # AIN already cached from the read, so the write itself needs no fetch.
+        await adapter.set_temperature(domain_device, 23.0)
+        assert client.list_calls == 1
+
+        # A read after a write must re-fetch instead of serving stale state.
+        await adapter.get_temperature(domain_device)
+        assert client.list_calls == 2
+
+
 class TestCapabilityGuard:
     async def test_non_thermostat_device_raises_capability_error(self) -> None:
         from tiberio.domain.errors import DeviceCapabilityError

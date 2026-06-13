@@ -24,13 +24,29 @@ class ReportStateHandler(AlexaHandler):
     async def _execute(self, ctx: DirectiveContext) -> list[dict]:
         state = await self._get_device_state.execute(ctx.endpoint_id)
         if state.capability == "temperature":
-            return [
+            properties = [
                 build_property(
                     "Alexa.ThermostatController",
                     "targetSetpoint",
                     {"value": state.value, "scale": "CELSIUS"},
-                )
+                ),
+                build_property("Alexa.ThermostatController", "thermostatMode", "HEAT"),
             ]
+            if state.current_celsius is not None:
+                properties.append(
+                    build_property(
+                        "Alexa.TemperatureSensor",
+                        "temperature",
+                        {"value": state.current_celsius, "scale": "CELSIUS"},
+                    )
+                )
+            # Reaching here means the FRITZ!Box answered, so the device is
+            # reachable; without this the thermostat tile spins on "unknown
+            # health" and never renders.
+            properties.append(
+                build_property("Alexa.EndpointHealth", "connectivity", {"value": "OK"})
+            )
+            return properties
         return [
             build_property(
                 "Alexa.RangeController",

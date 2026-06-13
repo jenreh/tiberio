@@ -38,9 +38,8 @@ class AlexaDirectiveRouter:
         self._dispatch: dict[tuple[str, str], HandlerFn] = {
             ("Alexa.PowerController", "TurnOn"): power.handle,
             ("Alexa.PowerController", "TurnOff"): power.handle,
+            # Mute only — volume is deliberately unsupported (see SpeakerHandler).
             ("Alexa.Speaker", "SetMute"): speaker.handle,
-            ("Alexa.Speaker", "SetVolume"): speaker.handle,
-            ("Alexa.Speaker", "AdjustVolume"): speaker.handle,
             ("Alexa.ThermostatController", "SetTargetTemperature"): thermostat.handle,
             (
                 "Alexa.ThermostatController",

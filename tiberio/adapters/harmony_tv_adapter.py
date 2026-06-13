@@ -16,6 +16,7 @@ from tiberio.domain.models import (
     Activity,
     Device,
     HubDevice,
+    TvAudio,
     TvChannel,
 )
 from tiberio.domain.values import MuteState
@@ -64,10 +65,16 @@ class HarmonyTvAdapter:
     # ------------------------------------------------------------------
 
     async def turn_on(self, device: Device) -> None:
-        """Power on a device. For TvChannel, ensures the activity and sets the channel."""
+        """Power on a device.
+
+        For a TvChannel, start the watch activity and tune the channel. For the
+        TvAudio endpoint, start the watch activity (turns the TV on).
+        """
         if isinstance(device, TvChannel):
             await self.ensure_activity(device.watch_activity)
             await self.set_channel(device.channel_number)
+        elif isinstance(device, TvAudio):
+            await self.ensure_activity(device.watch_activity)
         else:
             log.info(
                 "HarmonyTV: turn_on no-op for device=%s type=%s",
